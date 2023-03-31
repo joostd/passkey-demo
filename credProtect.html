@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<body onload="load()">
+
+<script>
+
+// M112: When creating a credential where residentKey=required and userVerification=preferred , set credProtect  to userVerificationRequired instead of userVerificationOptionalWithCredentialIDList 
+// This means such credentials can no longer be used when uv=discouraged
+
+// M113: MacOS Chrome platform authenticator no longer prompts for touchID/local device password when UV={discouraged,preferred}
+
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA
+
+const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
+
+// convert from ArrayBuffer to binary string:
+const decoder = new TextDecoder("utf-8");
+// convert from binary string to ArrayBuffer:
+const encoder = new TextEncoder(); // always utf-8
+
+// user database
+const users = new Map();
+// map from user id to user name
+const ids = new Map();
+
+// currently signed in user
+var user = null;
+
+// AbortController needs to be instantiated before any Webauthn API calls
+const abortController = new AbortController();
+
+var challenge = new Uint8Array(32);
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: user,
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        authenticatorSelection: {
+          requireResidentKey: true,
+          residentKey: "required",
+          authenticatorAttachment: "cross-platform",
+        //   userVerification: "discouraged",
+        //   userVerification: "preferred",
+          userVerification: "required",
+        },
+        extensions: {
+            credProps: true, 
+            // credentialProtectionPolicy: "userVerificationOptional",
+            // credentialProtectionPolicy: "userVerificationOptionalWithCredentialIDList",
+            credentialProtectionPolicy: "userVerificationRequired", 
+            //  PROTECTION_POLICY_INCONSISTENT - Requested protection policy is inconsistent or incongruent with other requested parameters.
+            // https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc#255
+            // Reject any non-sensical credProtect extension values:
+            // https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/content/browser/webauth/authenticator_common.cc#777
+        },
+        attestation: "none",
+        challenge: challenge.buffer
+    }
+};
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        userVerification: "required",
+    },
+};
+
+
+async function create() {
+    self.crypto.getRandomValues(challenge);
+    createCredentialDefaultArgs.publicKey.user = user;
+    var cred = await navigator.credentials.create(createCredentialDefaultArgs)
+    console.log(createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
+    console.assert(cred.type == 'public-key');
+    // console.assert(Object.keys(cred.getClientExtensionResults()).length === 0); // no extensions requested, so none returned
+    const extensions = cred.getClientExtensionResults();
+    console.log("Extensions:", extensions);
+    if( extensions.credProps && extensions.credProps.rk ) console.log('resident key created');
+    // response
+    console.log("transports:", cred.response.getTransports());
+    // AuthenticatorAttestationResponse: clientDataJSON, attestationObject
+    clientDataJSON = JSON.parse(decoder.decode(cred.response.clientDataJSON));
+    console.log("%cclientDataJSON:", "color: blue", clientDataJSON); // challenge, type, origin, crossOrigin?
+    console.assert(clientDataJSON.type == "webauthn.create");
+    console.assert(clientDataJSON.origin == location.origin);
+    //console.assert(clientDataJSON.crossOrigin == false);
+    console.assert( base64urlDecode(clientDataJSON.challenge) === ab2str(challenge) );
+    // cred.response.attestationObject := (fmt, attStmt, authData) is CBOR encoded, ignore as no attestation requested 
+    authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+    rpIdHash = authenticatorData.slice(0,32);
+    hostnameHash = await crypto.subtle.digest('SHA-256', str2ab(location.hostname));
+    console.assert(ab2str(rpIdHash) == ab2str(hostnameHash));
+    flags = new Uint8Array(authenticatorData.slice(32,33))[0];
+    console.log( (flags >>> 0).toString(2).padStart(8, "0") ); // ED AT __ __ __ UV __ UP
+    counter = new DataView(authenticatorData.slice(33,37)).getInt32(0, false) // big endian
+    console.log(`%ccounter: ${counter}`, "color: green");
+
+    aaguid = authenticatorData.slice(37,53); // 16 bytes
+    console.log(`aaguid: ${btoh(new Uint8Array(aaguid))}`);
+    credLen = authenticatorData.slice(53,55); // 2 bytes
+    len = new DataView(credLen).getInt16(0, false) // big endian
+    credentialId = authenticatorData.slice(55,55+len); // len bytes
+    console.log(`credentialId: ${ btoh(new Uint8Array(credentialId))}`);
+    credentialPublicKey = authenticatorData.slice(55+len); // rest bytes (assuming no extensions)
+    console.log(`credentialPublicKey: ${ btoh(new Uint8Array(credentialPublicKey))}`);
+    console.assert( cred.response.getPublicKeyAlgorithm() == ES256 );
+    user.key = await crypto.subtle.importKey( "spki", cred.response.getPublicKey(), algo, false, ["verify"] );
+    user.idList = [ {id: cred.rawId, type: "public-key"} ];
+    users.set(user.name,user);
+    // getCredentialDefaultArgs.publicKey.allowCredentials = idList; // to force the use of cross-platform authenticators
+    console.log("transports", cred.response.getTransports());
+}
+
+async function get() {
+    self.crypto.getRandomValues(challenge);
+    if( user !== null) {
+        if(  user.idList != undefined) {
+            getCredentialDefaultArgs.publicKey.allowCredentials = user.idList;
+            // allowCredentials sets credProtect to userVerificationOptionalWithCredentialIDList
+        }
+    } else {
+            delete getCredentialDefaultArgs.publicKey.allowCredentials;
+    }
+    var assertion = await navigator.credentials.get(getCredentialDefaultArgs);
+    console.log("%cASSERTION", "color: red", getCredentialDefaultArgs, assertion);
+    console.assert(assertion.type == 'public-key');
+
+    handle = new Uint8Array(assertion.response.userHandle);
+    console.log(`userHandle: ${ btoh(handle) }`);
+    if( user != null ) {
+        console.assert(btoh(user.id) === btoh(handle));
+    } else { // map handle to username
+        username = ids.get(btoh(handle));
+        if( username ) {
+            user = users.get(username);
+            console.log(username, user);
+        }
+    }
+    console.log(user);
+
+    clientDataJSON = JSON.parse(decoder.decode(assertion.response.clientDataJSON));
+    console.log("%cclientDataJSON:", "color: blue", clientDataJSON); // challenge, type, origin, crossOrigin?
+    console.assert(clientDataJSON.type == "webauthn.get");
+    console.assert(clientDataJSON.origin == location.origin);
+    console.assert( base64urlDecode(clientDataJSON.challenge) === ab2str(challenge) );
+    //
+    authenticatorData = assertion.response.authenticatorData;
+    console.log(authenticatorData); // 37 bytes: rpIdHash(32), flags(1), counter(4)
+    rpIdHash = authenticatorData.slice(0,32);
+    hostnameHash = await crypto.subtle.digest('SHA-256', str2ab(location.hostname));
+    console.assert(ab2str(rpIdHash) == ab2str(hostnameHash));
+    flags = new Uint8Array(authenticatorData.slice(32,33))[0];
+    console.log( (flags >>> 0).toString(2).padStart(8, "0") );
+    counter = new DataView(authenticatorData.slice(33,37)).getInt32(0, false) // big endian
+    console.log(`%ccounter: ${counter}`, "color: green");
+    // ignore extensions
+    var signature =  assertion.response.signature;
+    var clientDataJSON =  assertion.response.clientDataJSON;
+    var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
+    var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", clientDataJSON));
+    var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
+    rawSignature = unwrap(signature); // unwrap ASN.1 signature to "raw" format (r,s)
+    var verified = await crypto.subtle.verify(algo,user.key,rawSignature,signedData.buffer);
+    console.log('%cverified',"color: green",verified);
+    //
+    showUserLogin(user);
+    document.getElementById("message").innerHTML += `<br/>${ btoh(handle) } ${ user.name } logged in`;
+}
+
+function base64urlDecode(b64string) {
+    b64string = b64string
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+    return atob(b64string);
+}
+
+// convert ArrayBuffer to string
+function ab2str(buf) {
+    return String.fromCharCode.apply(null, new Uint8Array(buf));
+}
+
+// convert string to ArrayBuffer
+function str2ab(str) {
+    var buf = new ArrayBuffer(str.length); // 2 bytes for each char
+    var bufView = new Uint8Array(buf);
+    for (var i=0, strLen=str.length; i < strLen; i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+}
+
+// unwrap ASN.1 signature
+function unwrap(signature) {
+    var usignature = new Uint8Array(signature);
+    var rStart = usignature[4] === 0 ? 5 : 4;
+    var rEnd = rStart + 32;
+    var sStart = usignature[rEnd + 2] === 0 ? rEnd + 3 : rEnd + 2;
+    var r = usignature.slice(rStart, rEnd);
+    var s = usignature.slice(sStart);
+    var rawSignature = new Uint8Array([...r, ...s]);
+    return rawSignature;
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+
+function showUserLogin(user) {
+    console.log(user.name);
+    document.getElementById("displayName").innerHTML = user.name;
+    document.getElementById("message").innerHTML += `<br/>${user.name} logged in`;
+    document.getElementById("logon").style.display = "none";
+    document.getElementById("logoff").style.display = "block";
+    document.getElementById("create").disabled = false;
+}
+
+function logon(e) {
+    e.preventDefault();
+
+    var username = document.getElementById("username").value;
+    var password = document.getElementById("password").value;
+    // validate password, omitted here...
+    // auto-register unknown users
+    if( users.has(username)) {
+        console.log(`existing user ${username}`);
+        user = users.get(username);
+    } else {
+        console.log(`new user ${username}`);
+        var newuser = { id: new Uint8Array(16), name: username, displayName: "Anonymous" };
+        self.crypto.getRandomValues(newuser.id);
+        users.set(username, newuser);
+        ids.set(btoh(newuser.id), username);
+        user = newuser;
+    }
+    showUserLogin(user);
+    // cancel submit, we're simulating the RP on the client
+    return false;
+}
+
+function logoff() {
+    console.log("log off");
+    document.getElementById("message").innerHTML += `<br/>${user.name} logged out`;
+    user = null;
+    document.getElementById("logoff").style.display = "none";
+    document.getElementById("logon").style.display = "block";
+    document.getElementById("create").disabled = true;
+
+}
+
+PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+  .then((available) => {
+      document.getElementById("message").innerHTML += `<br/>User Verifying Platform Authenticator is ${available?'':'NOT'} Available`;
+  }).catch(console.error);
+
+PublicKeyCredential.isConditionalMediationAvailable()
+  .then((available) => {
+      document.getElementById("message").innerHTML += `<br/>Conditional Mediation is ${available?'':'NOT'} Available`;
+  }).catch(console.error);
+
+  // (1) Platform AuthR
+  // chrome://settings/paskeys
+  // iOS/Safari - Settings > passwords
+  // IF passkeys available THEN show passkey popup ELSE start model dialog
+  // (2) Roaming AuthR
+  // ???
+
+async function load() {
+    return;
+    getCredentialDefaultArgs.publicKey.signal = abortController.signal;
+    getCredentialDefaultArgs.publicKey.mediation = 'conditional';
+    get();
+}
+
+async function loadbak() {
+    const publicKeyCredentialRequestOptions = {
+        authenticatorSelection: { authenticatorAttachment: 'platform'},
+        challenge: challenge.buffer
+    };
+
+    const credential = await navigator.credentials.get({
+        publicKey: publicKeyCredentialRequestOptions,
+        signal: abortController.signal,
+        // Specify 'conditional' to activate conditional UI
+        mediation: 'conditional'
+    });
+
+}
+
+</script>
+
+<div style='float: right;'>
+    <form id="logon" onSubmit="return logon(event)">
+        <label for="username">Username:</label><input type="text" id="username" autoComplete="username webauthn" />
+        <label for="password">Password:</label><input type="password" id="password"/>
+        <input type="submit" value="Sign in">
+    </form>
+    <div id="logoff" style='display: none'><span id="displayName">displayName</span><button onClick="logoff()">Log out</button></div>
+</div>
+
+<button id="create" onClick="create()" disabled>navigator.credentials.create</button>
+<button id="get"    onClick="get()">navigator.credentials.get</button>
+
+<div id="message" class="info">Enable javascript console to view log messages</div>
+
+</body>
+</html>
