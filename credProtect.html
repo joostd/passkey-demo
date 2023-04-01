@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html>
-<body onload="load()">
+<body onload="logon()">
 
 <script>
+
+// TODO
+// - collect all credential IDs for a user to send in the allow list / exclude list
 
 // M112: When creating a credential where residentKey=required and userVerification=preferred , set credProtect  to userVerificationRequired instead of userVerificationOptionalWithCredentialIDList 
 // This means such credentials can no longer be used when uv=discouraged
@@ -11,7 +14,7 @@
 
 
 const ES256 = -7; // ECDSA w/ SHA-256
-const RS256 = -257; // RSA
+const RS256 = -257; // RSA w/ SHA-256
 
 const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
 
@@ -27,9 +30,6 @@ const ids = new Map();
 
 // currently signed in user
 var user = null;
-
-// AbortController needs to be instantiated before any Webauthn API calls
-const abortController = new AbortController();
 
 var challenge = new Uint8Array(32);
 
@@ -49,41 +49,59 @@ var createCredentialDefaultArgs = {
           authenticatorAttachment: "cross-platform",
         //   userVerification: "discouraged",
         //   userVerification: "preferred",
-          userVerification: "required",
+        //   userVerification: "required",
         },
         extensions: {
             credProps: true, 
             // credentialProtectionPolicy: "userVerificationOptional",
             // credentialProtectionPolicy: "userVerificationOptionalWithCredentialIDList",
-            credentialProtectionPolicy: "userVerificationRequired", 
-            //  PROTECTION_POLICY_INCONSISTENT - Requested protection policy is inconsistent or incongruent with other requested parameters.
-            // https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc#255
-            // Reject any non-sensical credProtect extension values:
-            // https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/content/browser/webauth/authenticator_common.cc#777
+            // credentialProtectionPolicy: "userVerificationRequired", 
         },
         attestation: "none",
         challenge: challenge.buffer
     }
 };
 
+// NOTE:
+// Chrome will throw an error (PROTECTION_POLICY_INCONSISTENT, see below) if a credProtection value is non-sensical, i.e.
+// 1. when a protection policy is enforced AND credProtection is UNSPECIFIE (none provided) or userVerificationOptional
+//    Can't require the default policy (or no policy).
+// 2. when authenticatorSelection.requireResidentKey != true AND credProtection is userVerificationOptional
+//    For non-resident keys, NONE doesn't make sense. 
+// 3. when credProtection ==  userVerificationRequired AND authenticatorSelection.userVerification != required
+//    userVerificationRequired only makes sense if UV is required overall.
+
+// NOTE: for non-resident keys, userVerificationOptionalWithCredentialIDList does make sense because, with CTAP 2.0, just because a resident key isn't _required_ 
+//       doesn't mean that one won't be created and an RP might want credProtect to take effect if that happens.
+
+//  PROTECTION_POLICY_INCONSISTENT - Requested protection policy is inconsistent or incongruent with other requested parameters.
+// https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc#255
+// Reject any non-sensical credProtect extension values:
+// https://chromium.googlesource.com/chromium/src/+/598d109104e59ad60359354b743daad01f63a6d2/content/browser/webauth/authenticator_common.cc#777
+
 var getCredentialDefaultArgs = {
     publicKey: {
         challenge: challenge.buffer,
-        userVerification: "required",
     },
 };
-
 
 async function create() {
     self.crypto.getRandomValues(challenge);
     createCredentialDefaultArgs.publicKey.user = user;
-    var cred = await navigator.credentials.create(createCredentialDefaultArgs)
-    console.log(createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
+    // credentialProtectionPolicy
+    credentialProtectionPolicy = document.getElementById("credentialProtectionPolicy").value
+    console.log("Selected credentialProtectionPolicy: ", credentialProtectionPolicy);
+    if( credentialProtectionPolicy !== 'default')
+        createCredentialDefaultArgs.publicKey.extensions.credentialProtectionPolicy = credentialProtectionPolicy;
+    // userVerification
+    userVerification = document.getElementById("userVerification").value
+    console.log("Selected userVerification: ", userVerification);
+    if( userVerification !== 'default')
+        createCredentialDefaultArgs.publicKey.authenticatorSelection.userVerification = userVerification;
+
+    var cred = await navigator.credentials.create(createCredentialDefaultArgs);
+    console.log("%cATTESTATION", "color: red", createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
     console.assert(cred.type == 'public-key');
-    // console.assert(Object.keys(cred.getClientExtensionResults()).length === 0); // no extensions requested, so none returned
-    const extensions = cred.getClientExtensionResults();
-    console.log("Extensions:", extensions);
-    if( extensions.credProps && extensions.credProps.rk ) console.log('resident key created');
     // response
     console.log("transports:", cred.response.getTransports());
     // AuthenticatorAttestationResponse: clientDataJSON, attestationObject
@@ -117,6 +135,12 @@ async function create() {
     users.set(user.name,user);
     // getCredentialDefaultArgs.publicKey.allowCredentials = idList; // to force the use of cross-platform authenticators
     console.log("transports", cred.response.getTransports());
+    console.log(`%c#extensions: ${Object.keys(cred.getClientExtensionResults()).length}`, "color: green");
+    const extensions = cred.getClientExtensionResults();
+    console.log("Extensions:", extensions);
+    if( extensions.credProps && extensions.credProps.rk )
+        document.getElementById("message").innerHTML += `<br/>resident key created for ${ user.name }`;
+
 }
 
 async function get() {
@@ -129,20 +153,26 @@ async function get() {
     } else {
             delete getCredentialDefaultArgs.publicKey.allowCredentials;
     }
+    // userVerification
+    userVerification = document.getElementById("userVerification").value
+    console.log("Selected userVerification: ", userVerification);
+    if( userVerification !== 'default')
+        getCredentialDefaultArgs.publicKey.userVerification = userVerification;
+
     var assertion = await navigator.credentials.get(getCredentialDefaultArgs);
     console.log("%cASSERTION", "color: red", getCredentialDefaultArgs, assertion);
     console.assert(assertion.type == 'public-key');
 
     handle = new Uint8Array(assertion.response.userHandle);
     console.log(`userHandle: ${ btoh(handle) }`);
-    if( user != null ) {
-        console.assert(btoh(user.id) === btoh(handle));
+    if( btoh(user.id) === btoh(handle) ) {
     } else { // map handle to username
         username = ids.get(btoh(handle));
         if( username ) {
             user = users.get(username);
             console.log(username, user);
         }
+        document.getElementById("username").value = username;
     }
     console.log(user);
 
@@ -161,18 +191,22 @@ async function get() {
     console.log( (flags >>> 0).toString(2).padStart(8, "0") );
     counter = new DataView(authenticatorData.slice(33,37)).getInt32(0, false) // big endian
     console.log(`%ccounter: ${counter}`, "color: green");
-    // ignore extensions
-    var signature =  assertion.response.signature;
-    var clientDataJSON =  assertion.response.clientDataJSON;
-    var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
-    var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", clientDataJSON));
-    var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
-    rawSignature = unwrap(signature); // unwrap ASN.1 signature to "raw" format (r,s)
-    var verified = await crypto.subtle.verify(algo,user.key,rawSignature,signedData.buffer);
-    console.log('%cverified',"color: green",verified);
+    if( user.key ) {
+        // ignore extensions
+        var signature =  assertion.response.signature;
+        var clientDataJSON =  assertion.response.clientDataJSON;
+        var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
+        var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", clientDataJSON));
+        var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
+        rawSignature = unwrap(signature); // unwrap ASN.1 signature to "raw" format (r,s)
+        var verified = await crypto.subtle.verify(algo,user.key,rawSignature,signedData.buffer);
+        console.log('%cverified',"color: green",verified);
+    } else {
+        console.log('%cuser not found',"color: red", user);
+    }
     //
-    showUserLogin(user);
-    document.getElementById("message").innerHTML += `<br/>${ btoh(handle) } ${ user.name } logged in`;
+
+    document.getElementById("message").innerHTML += `<br/>credential ID ${ btoh(handle) } for user ${ user.name }`;
 }
 
 function base64urlDecode(b64string) {
@@ -214,21 +248,9 @@ function btoh(bytes /* Uint8Array */) {
 }
 
 
-function showUserLogin(user) {
-    console.log(user.name);
-    document.getElementById("displayName").innerHTML = user.name;
-    document.getElementById("message").innerHTML += `<br/>${user.name} logged in`;
-    document.getElementById("logon").style.display = "none";
-    document.getElementById("logoff").style.display = "block";
-    document.getElementById("create").disabled = false;
-}
-
-function logon(e) {
-    e.preventDefault();
+function logon() {
 
     var username = document.getElementById("username").value;
-    var password = document.getElementById("password").value;
-    // validate password, omitted here...
     // auto-register unknown users
     if( users.has(username)) {
         console.log(`existing user ${username}`);
@@ -241,73 +263,35 @@ function logon(e) {
         ids.set(btoh(newuser.id), username);
         user = newuser;
     }
-    showUserLogin(user);
-    // cancel submit, we're simulating the RP on the client
-    return false;
-}
-
-function logoff() {
-    console.log("log off");
-    document.getElementById("message").innerHTML += `<br/>${user.name} logged out`;
-    user = null;
-    document.getElementById("logoff").style.display = "none";
-    document.getElementById("logon").style.display = "block";
-    document.getElementById("create").disabled = true;
-
-}
-
-PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-  .then((available) => {
-      document.getElementById("message").innerHTML += `<br/>User Verifying Platform Authenticator is ${available?'':'NOT'} Available`;
-  }).catch(console.error);
-
-PublicKeyCredential.isConditionalMediationAvailable()
-  .then((available) => {
-      document.getElementById("message").innerHTML += `<br/>Conditional Mediation is ${available?'':'NOT'} Available`;
-  }).catch(console.error);
-
-  // (1) Platform AuthR
-  // chrome://settings/paskeys
-  // iOS/Safari - Settings > passwords
-  // IF passkeys available THEN show passkey popup ELSE start model dialog
-  // (2) Roaming AuthR
-  // ???
-
-async function load() {
-    return;
-    getCredentialDefaultArgs.publicKey.signal = abortController.signal;
-    getCredentialDefaultArgs.publicKey.mediation = 'conditional';
-    get();
-}
-
-async function loadbak() {
-    const publicKeyCredentialRequestOptions = {
-        authenticatorSelection: { authenticatorAttachment: 'platform'},
-        challenge: challenge.buffer
-    };
-
-    const credential = await navigator.credentials.get({
-        publicKey: publicKeyCredentialRequestOptions,
-        signal: abortController.signal,
-        // Specify 'conditional' to activate conditional UI
-        mediation: 'conditional'
-    });
-
 }
 
 </script>
 
-<div style='float: right;'>
-    <form id="logon" onSubmit="return logon(event)">
-        <label for="username">Username:</label><input type="text" id="username" autoComplete="username webauthn" />
-        <label for="password">Password:</label><input type="password" id="password"/>
-        <input type="submit" value="Sign in">
-    </form>
-    <div id="logoff" style='display: none'><span id="displayName">displayName</span><button onClick="logoff()">Log out</button></div>
+<div>
+    <label for="username">Username:</label><input type="text" id="username" value="testuser" onchange="logon()"/>
+    <br/>
+    <label for="credentialProtectionPolicy">credentialProtectionPolicy:</label>
+    <select id="credentialProtectionPolicy">
+        <option value="default">default</option>
+        <option value="userVerificationOptional">userVerificationOptional</option>
+        <option value="userVerificationOptionalWithCredentialIDList">userVerificationOptionalWithCredentialIDList</option>
+        <option value="userVerificationRequired">userVerificationRequired</option>
+    </select>
+    <br/>
+    <label for="userVerification">userVerification:</label>
+    <select id="userVerification">
+        <option value="default">default</option>
+        <option value="discouraged">discouraged</option>
+        <option value="preferred">preferred</option>
+        <option value="required">required</option>
+    </select>
+    <br/>
+    <button id="create" onClick="create()">navigator.credentials.create</button>
+    <button id="get"    onClick="get()">navigator.credentials.get</button>
+    <br/>
 </div>
 
-<button id="create" onClick="create()" disabled>navigator.credentials.create</button>
-<button id="get"    onClick="get()">navigator.credentials.get</button>
+<hr/>
 
 <div id="message" class="info">Enable javascript console to view log messages</div>
 
