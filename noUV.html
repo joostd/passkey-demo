@@ -62,7 +62,7 @@ function create() {
         createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: cred.rawId, type: "public-key"} ]; // prevent registration of a second credential
         const extensions = cred.getClientExtensionResults();
         if( extensions.credProps && extensions.credProps.rk )
-            document.getElementById("message").innerHTML += `<br/>resident key created`;
+            document.getElementById("message").innerHTML += `<br/>resident credential created`;
     }).catch((e) => {
         document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
     })
@@ -98,8 +98,8 @@ function didLoad() {
 
 <hr/>
 
-<p>WARNING: Clicking <code>create</code> will register a resident key on your Security Key.
-<p>Use <code>chrome://settings/securityKeys/</code> to delete the credential for <code>deleteMe</code> when done.
+<p>WARNING: Clicking <code>create</code> will register a resident credential on your Security Key.
+<p>Use <code>chrome://settings/securityKeys/</code> to delete the credential with username <code>deleteMe</code> when done.
 
 <div id="message" class="info">
 </div>
