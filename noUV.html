@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<body>
+<body onLoad="didLoad()">
 
 <script>
 
@@ -84,6 +84,9 @@ function btoh(bytes /* Uint8Array */) {
   return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+function didLoad() {
+    document.getElementById("message").innerHTML += `<br/>You are using: <code>${ navigator.appVersion }</code> (navigator.appVersion)`;
+}
 
 </script>
 
@@ -95,7 +98,11 @@ function btoh(bytes /* Uint8Array */) {
 
 <hr/>
 
-<div id="message" class="info">WARNING: Clicking <code>create</code> will register a resident key on your Security Key. Use <code>chrome://settings/securityKeys/</code> to delete the credential for <code>deleteMe</code> when done.</div>
+<p>WARNING: Clicking <code>create</code> will register a resident key on your Security Key.
+<p>Use <code>chrome://settings/securityKeys/</code> to delete the credential for <code>deleteMe</code> when done.
+
+<div id="message" class="info">
+</div>
 
 </body>
 </html>
