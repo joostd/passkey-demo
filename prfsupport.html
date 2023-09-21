@@ -1,5 +1,16 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
 <body>
 
 <script>
@@ -50,6 +61,7 @@ async function create() {
     createCredentialDefaultArgs.publicKey.user = user;
     var cred = await navigator.credentials.create(createCredentialDefaultArgs)
     console.log(createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
+    console.log("transports:", cred.response.getTransports());
     console.assert(cred.type == 'public-key');
 
     var aaguid = null;
@@ -86,7 +98,7 @@ This page tests if your browser supports the <a href="https://github.com/w3c/web
   </ul>
 </div>
 
-<button id="create" onClick="create()">Test PRF support</button>
+<button class="button" id="create" onClick="create()">Test PRF support</button>
 
 <div id="message" class="info">
 </div>
