@@ -60,8 +60,7 @@ var createCredentialDefaultArgs = {
 async function create() {
     createCredentialDefaultArgs.publicKey.user = user;
     var cred = await navigator.credentials.create(createCredentialDefaultArgs)
-    console.log(createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
-    console.log("transports:", cred.response.getTransports());
+    console.log(createCredentialDefaultArgs, cred);
     console.assert(cred.type == 'public-key');
 
     var aaguid = null;
