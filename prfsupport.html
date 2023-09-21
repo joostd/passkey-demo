@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script>
+
+const ES256 = -7;   // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+var user = { id: new Uint8Array(16), name: "anynymous", displayName: "Anonymous" };
+//self.crypto.getRandomValues(user.id);
+
+var challenge = new Uint8Array(32);
+//self.crypto.getRandomValues(challenge);
+
+const salt = new Uint8Array(32);
+//self.crypto.getRandomValues(salt); // or user provided
+
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        rp: {
+            name: "PRF test"
+        },
+        user: user,
+        pubKeyCredParams: [
+		{ type: "public-key", alg: ES256 },
+		{ type: "public-key", alg: RS256 },
+	],
+        authenticatorSelection: {
+            authenticatorAttachment: "cross-platform",
+        },
+        attestation: "direct",
+    	extensions: { 
+            prf: {
+                eval: {
+                    first: salt.buffer,
+                } 
+            }
+        },
+    }
+};
+
+async function create() {
+    createCredentialDefaultArgs.publicKey.user = user;
+    var cred = await navigator.credentials.create(createCredentialDefaultArgs)
+    console.log(createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
+    console.assert(cred.type == 'public-key');
+
+    var aaguid = null;
+
+    if('getAuthenticatorData' in cred.response) {
+        authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+        aaguid = authenticatorData.slice(37,53); // 16 bytes
+    }
+
+    console.log(`#extensions: ${ Object.keys(cred.getClientExtensionResults()).length }`);
+    const extensions = cred.getClientExtensionResults();
+    if( `prf` in extensions && extensions.prf.enabled ) {
+        document.getElementById("message").innerHTML += `<br/><span style="color:green;">&#10004</span>&nbsp;PRF supported`;
+    } else {
+        document.getElementById("message").innerHTML += `<br/><span style="color:red;">&#10006</span>&nbsp;PRF not supported`;
+    }
+    document.getElementById("message").innerHTML += `&nbsp;[AAGUID: <code>${ aaguid ? btoh(new Uint8Array(aaguid)) : "?" }</code>]`;
+    document.getElementById("message").innerHTML += `&nbsp;[userAgent: <code>${ navigator.userAgent }</code>]`;
+
+}
+
+
+</script>
+
+<h1>PRF Tester</h1>
+
+<div >
+This page tests if your browser supports the <a href="https://github.com/w3c/webauthn/wiki/Explainer:-PRF-extension">Webauthn PRF extension</a>.
+  <ul>
+   <li>Use a FIDO2 security key that supports the <a href="https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-errata-20220621.html#sctn-hmac-secret-extension">hmac-secret</a> extension, for instance a YubiKey.</li>
+   <li>See <a href="https://opotonniee.github.io/fido-mds-explorer/">FIDO MDS Explorer</a> for your security key's extension support (check <code>extensions</code> under <code>authenticatorGetInfo</code> for your model).</li>
+   <li>Alternatively, use a tool like <a href="https://developers.yubico.com/libfido2/Manuals/fido2-token.html">fido2-token</a> to check for supported extensions.
+   <li>Nothing will be stored on your security key</li>
+  </ul>
+</div>
+
+<button id="create" onClick="create()">Test PRF support</button>
+
+<div id="message" class="info">
+</div>
+
+<br/>
+
+</body>
+</html>
