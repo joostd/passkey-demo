@@ -20,7 +20,6 @@ const RS256 = -257; // RSA w/ SHA-256
 
 const user = { id: new Uint8Array(16), name: "deleteme", displayName: "Delete Me" };
 const challenge = new Uint8Array(32);
-const salt = new Uint8Array(32);
 
 function copyToClipboard() {
   var text = document.getElementById("message").innerText;
@@ -48,11 +47,7 @@ var createCredentialDefaultArgs = {
         //},
         attestation: "direct",
     	extensions: { 
-            prf: {
-                eval: {
-                    first: salt.buffer,
-                } 
-            }
+            prf: { }
         },
     }
 };
@@ -72,6 +67,7 @@ async function create() {
 
     console.log(`#extensions: ${ Object.keys(cred.getClientExtensionResults()).length }`);
     const extensions = cred.getClientExtensionResults();
+    console.log( extensions );
     if( `prf` in extensions && extensions.prf.enabled ) {
         document.getElementById("message").innerHTML += `<br/><span style="color:green;">&#10004</span>&nbsp;PRF supported`;
     } else {
