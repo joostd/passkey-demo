@@ -42,9 +42,10 @@ var createCredentialDefaultArgs = {
 		{ type: "public-key", alg: ES256 },
 		{ type: "public-key", alg: RS256 },
 	],
-        //authenticatorSelection: {
+        authenticatorSelection: {
             //authenticatorAttachment: "cross-platform",
-        //},
+	    //residentKey: "preferred"
+        },
         attestation: "direct",
     	extensions: { 
             prf: { }
@@ -78,6 +79,20 @@ async function create() {
 
 }
 
+function changeAuthenticatorAttachment() {
+  var option = document.getElementById("attachment");
+  createCredentialDefaultArgs.publicKey.authenticatorSelection.authenticatorAttachment = option.value;
+}
+
+function changeResidentKey() {
+  var option = document.getElementById("residentKey");
+  createCredentialDefaultArgs.publicKey.authenticatorSelection.residentKey = option.value;
+}
+
+window.onload=function(){
+  document.getElementById("residentKey").addEventListener("change", changeResidentKey);
+  document.getElementById("attachment").addEventListener("change", changeAuthenticatorAttachment);
+}
 
 </script>
 
@@ -89,12 +104,24 @@ This page tests if your browser supports the <a href="https://github.com/w3c/web
    <li>Use a FIDO2 security key that supports the <a href="https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-errata-20220621.html#sctn-hmac-secret-extension">hmac-secret</a> extension, for instance a YubiKey.</li>
    <li>See <a href="https://opotonniee.github.io/fido-mds-explorer/">FIDO MDS Explorer</a> for your security key's extension support (check <code>extensions</code> under <code>authenticatorGetInfo</code> for your model).</li>
    <li>Alternatively, use a tool like <a href="https://developers.yubico.com/libfido2/Manuals/fido2-token.html">fido2-token</a> to check for supported extensions.
-   <li>Nothing will be stored on your security key</li>
   </ul>
 </div>
 
 <button class="button" id="create" onClick="create()">Test PRF support</button>
 
+<label for="residentKey">residentKey:</label>
+<select id="residentKey">
+  <option></option>
+  <option>discouraged</option>
+  <option>preferred</option>
+  <option>required</option>
+</select>
+<label for="attachment">authenticatorAttachment:</label>
+<select id="attachment">
+  <option></option>
+  <option>platform</option>
+  <option>cross-platform</option>
+</select>
 <div id="message" class="info">
 </div>
 
