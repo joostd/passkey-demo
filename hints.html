@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<script>
+
+const ES256 = -7;   // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const user = { id: new Uint8Array(16), name: "deleteme", displayName: "Delete Me" };
+const challenge = new Uint8Array(32);
+var hints = [];
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        rp: {
+            name: "hints test"
+        },
+        user: user,
+        pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
+        authenticatorSelection: {
+            //authenticatorAttachment: "cross-platform",
+        },
+        attestation: "direct",
+	hints: hints,
+    }
+};
+
+async function create() {
+    document.getElementById("message").innerHTML = '';
+    createCredentialDefaultArgs.publicKey.user = user;
+    createCredentialDefaultArgs.publicKey.hints = hints;
+    console.log(createCredentialDefaultArgs);
+    try {
+        var cred = await navigator.credentials.create(createCredentialDefaultArgs)
+        console.log(cred);
+        document.getElementById("message").innerHTML += '&#9989';
+    } catch ({ name, message }) {
+        if( "NotAllowedError" !== name ) console.log(name, message);
+        document.getElementById("message").innerHTML = message;
+    }
+}
+
+function changeAuthenticatorAttachment() {
+    var option = document.getElementById("attachment");
+    createCredentialDefaultArgs.publicKey.authenticatorSelection.authenticatorAttachment = option.value;
+}
+
+function changeHints(e) {
+    if(e.target.checked) { // add element
+        hints.push(e.target.value)
+    } else { // delete element
+        hints = hints.filter((h) => { if( h !== e.target.value) return h});
+    }
+}
+
+window.onload=function(){
+    document.getElementById("attachment").addEventListener("change", changeAuthenticatorAttachment);
+    document.getElementById("securityKey").addEventListener("change", changeHints);
+    document.getElementById("clientDevice").addEventListener("change", changeHints);
+    document.getElementById("hybrid").addEventListener("change", changeHints);
+}
+
+</script>
+
+<h1>PublicKeyCredentialHints Tester</h1>
+
+<button class="button" id="create" onClick="create()">Test hints support</button>
+
+<label for="attachment">authenticatorAttachment:</label>
+<select id="attachment">
+  <option></option>
+  <option>platform</option>
+  <option>cross-platform</option>
+</select>
+
+<fieldset>
+  <legend>Hints</legend>
+  <div>
+    <input type="checkbox" id="securityKey" name="hints" value="security-key" />
+    <label for="securityKey">security-key</label>
+  </div>
+  <div>
+    <input type="checkbox" id="clientDevice" name="hints" value="client-device" />
+    <label for="clientDevice">client-device</label>
+  </div>
+  <div>
+    <input type="checkbox" id="hybrid" name="hints" value="hybrid" />
+    <label for="hybrid">hybrid</label>
+  </div>
+</fieldset>
+
+<p id="text" style="display:none">Checkbox is CHECKED!</p>
+
+
+<div id="message" class="info">
+</div>
+
+<br/>
+
+</body>
+</html>
