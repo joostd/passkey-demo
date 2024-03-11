@@ -31,7 +31,8 @@ var createCredentialDefaultArgs = {
           requireResidentKey: true,
           residentKey: "required",
           authenticatorAttachment: "cross-platform",
-          // userVerification: "discouraged",
+          // filter authenticators to only those capable of satisfying this requirement:
+          //userVerification: "discouraged", // not allowed, see https://www.w3.org/TR/webauthn-2/#sctn-privacy-considerations-client
         },
         extensions: {
             credProps: true, 
@@ -78,7 +79,6 @@ function get() {
         document.getElementById("message").innerHTML += `<br/><b>Authentication failed</b>: ${ e.message }`;
     })
 }
-
 
 function btoh(bytes /* Uint8Array */) {
   return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");

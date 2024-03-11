@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<body onLoad="load()">
+
+<script>
+
+// feature detections
+
+function load() {
+  if (window.PublicKeyCredential) { // check for webAuthn
+
+    if (PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) { // check for isUserVerifyingPlatformAuthenticatorAvailable
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then((available) => {
+          document.getElementById("message").innerHTML += `<br/>isUserVerifyingPlatformAuthenticatorAvailable: ${available}`;
+        }).catch(console.error);
+    } else {
+      document.getElementById("message").innerHTML += `<br/>isUserVerifyingPlatformAuthenticatorAvailable not implemented`;
+    }
+
+    if (PublicKeyCredential.isConditionalMediationAvailable) { // check for isConditionalMediationAvailable
+      PublicKeyCredential.isConditionalMediationAvailable()
+        .then((available) => {
+          document.getElementById("message").innerHTML += `<br/>isConditionalMediationAvailable: ${available}`;
+        }).catch(console.error);
+    } else {
+      document.getElementById("message").innerHTML += `<br/>isConditionalMediationAvailable not implemented`;
+    }
+
+    if (PublicKeyCredential.getClientCapabilities) { // check for getClientCapabilities
+      PublicKeyCredential.getClientCapabilities()
+        .then((caps) => {
+          // {hybridTransport: true, conditionalCreate: false, passkeyPlatformAuthenticator: true, userVerifyingPlatformAuthenticator: true, conditionalMediation: true}
+          document.getElementById("message").innerHTML += `<br/>getClientCapabilities: `;
+          for (const property in caps) {
+            document.getElementById("message").innerHTML += `<br/>${caps[property]?'&#9989':'&#10060'}&nbsp;${property}`;
+          }
+        }).catch(console.error);
+    } else {
+      document.getElementById("message").innerHTML += `<br/>getClientCapabilities not implemented`;
+    }
+
+  }
+}
+</script>
+
+<div id="message" />
+
+</body>
+</html>
