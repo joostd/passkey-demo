@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<script src="cbor.js"></script>
+<script src="https://git.coolaj86.com/coolaj86/asn1-parser.js/raw/branch/master/asn1-parser.js"></script>
+<script src="https://unpkg.com/@peculiar/x509"></script>
+<script>
+
+const ES256 = -7;   // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const user = { id: new Uint8Array(16), name: "deleteme", displayName: "Delete Me" };
+const challenge = new Uint8Array(32);
+
+function hex(ab /* ArrayBuffer */) {
+  return [...new Uint8Array(ab)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getSerial(cert) {
+    let serial = null;
+    for(i in cert.extensions) {
+        e = cert.extensions[i]
+        if( e.type === '1.3.6.1.4.1.45724.1.1.2' ) { // id-fido-gen-ce-serial
+            console.assert(new DataView(e.value.slice(0,1)).getInt8(0, false) == 4);
+            console.assert(new DataView(e.value.slice(1,2)).getInt8(0, false) == 4);
+            serial = new DataView(e.value.slice(2,6)).getInt32(0, false) // big endian
+            return serial;
+        }
+    }
+    return serial;
+}
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        rp: {
+            name: "EA test"
+        },
+        user: user,
+        pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
+        authenticatorSelection: {
+            authenticatorAttachment: "cross-platform",
+        },
+        attestation: "enterprise",
+    }
+};
+
+async function create() {
+    createCredentialDefaultArgs.publicKey.user = user;
+    var cred = await navigator.credentials.create(createCredentialDefaultArgs)
+    console.assert(cred.type == 'public-key');
+    attestation = cbor_decode(cred.response.attestationObject);
+    console.assert( attestation.fmt == 'packed');
+    const cert = new x509.X509Certificate(attestation.attStmt.x5c[0]); // skipping CA chain validation
+    serial = getSerial(cert);
+    document.getElementById("message").innerHTML += `&nbsp;Security Key serial#: <code>${ serial }</code>`;
+}
+</script>
+
+<h1>Enterprise Attestation Tester</h1>
+
+<div >
+This page tests if your browser and FIDO security key support Enterprise Attestation.
+  <ol>
+   <li>Use a FIDO2 security key that supports FIDO Enterprise Attestation.</li>
+   <li>Set the origin for allowing enterprise attestation to <code><script>document.write(window.location.origin)</script></code></li>
+  </ol>
+       When using Chrome, enable <code>chrome://flags/#web-authentication-permit-enterprise-attestation</code>
+       to permit a set of origins to request an attestation statement from a security key when creating a Web Authentication credential.
+</div>
+
+<button class="button" id="create" onClick="create()">Test Enterprise Attestation support</button>
+
+<div id="message" class="info">
+</div>
+
+</body>
+</html>
