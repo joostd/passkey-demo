@@ -14,7 +14,6 @@
 <body>
 
 <script src="cbor.js"></script>
-<script src="https://git.coolaj86.com/coolaj86/asn1-parser.js/raw/branch/master/asn1-parser.js"></script>
 <script src="https://unpkg.com/@peculiar/x509"></script>
 <script>
 
@@ -71,6 +70,11 @@ async function create() {
     serial = getSerial(cert);
     document.getElementById("message").innerHTML += `&nbsp;Security Key serial#: <code>${ serial }</code>`;
 }
+
+window.onload=function(){
+    document.getElementById("origin").innerHTML = `<code>${ window.location.origin }</code>`;
+}
+
 </script>
 
 <h1>Enterprise Attestation Tester</h1>
@@ -79,7 +83,7 @@ async function create() {
 This page tests if your browser and FIDO security key support Enterprise Attestation.
   <ol>
    <li>Use a FIDO2 security key that supports FIDO Enterprise Attestation.</li>
-   <li>Set the origin for allowing enterprise attestation to <code><script>document.write(window.location.origin)</script></code></li>
+   <li>Set the origin for allowing enterprise attestation to <span id="origin">...</span>.</li>
   </ol>
        When using Chrome, enable <code>chrome://flags/#web-authentication-permit-enterprise-attestation</code>
        to permit a set of origins to request an attestation statement from a security key when creating a Web Authentication credential.
