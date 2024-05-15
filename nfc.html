@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<h3>Web NFC demo</h3>
+<p>
+Click "Scan" and place an NFC tag on the back of your phone.
+</br/>
+To view Android log messages on another device, connect via USB and open <code>chrome://inspect/#devices</code> to inspect.
+</p>
+
+<button class="button" id="scanButton">Scan</button>
+
+<div>
+  <div id="content"></div>
+  <div id="status"></div>
+  <pre id="log"></pre>
+</div>
+
+<script>
+// Web NFC aims to provide sites the ability to read and write to NFC tags
+// The current scope is limited to NDEF.
+// Low-level I/O operations (e.g. ISO-DEP, NFC-A/B, NFC-F) and Host-based Card Emulation (HCE) are not supported within the current scope.
+
+function log() {
+  var line = Array.prototype.slice.call(arguments).map(function(argument) {
+    return typeof argument === 'string' ? argument : JSON.stringify(argument);
+  }).join(' ');
+  document.querySelector('#log').textContent += line + '\n';
+}
+
+function setStatus(status) {
+  document.querySelector('#status').textContent = status;
+}
+
+// convert ArrayBuffer to string
+function ab2str(buf) {
+    return String.fromCharCode.apply(null, new Uint8Array(buf));
+}
+
+function hex(ab /* ArrayBuffer */) {
+  return [...new Uint8Array(ab)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function checkPermission() {
+    const nfcPermissionStatus = await navigator.permissions.query({ name: "nfc" });
+    if (nfcPermissionStatus.state === "granted") {
+      console.log("NFC permission granted");
+    } else {
+      setStatus("Please grant NFC permission in order to scan NDEF tags");
+    };
+}
+
+if (!("NDEFReader" in window))
+  setStatus("Web NFC is not available. Use Chrome on Android.");
+else
+  checkPermission();
+
+scanButton.addEventListener("click", async () => {
+  log("Scanning NFC tag");
+
+  try {
+    const ndef = new NDEFReader();
+    await ndef.scan();
+    console.log("> Scan started");
+    ndef.addEventListener("readingerror", () => {
+      log("ERROR - Cannot read data from the NFC tag.");
+    });
+
+    ndef.addEventListener("reading", ({ message, serialNumber }) => {
+      console.log(`> Serial Number: ${serialNumber}`);
+      console.log(`> #records: (${message.records.length})`);
+      for( i=0; i<message.records.length; i++) {
+        const record = message.records[i];
+        console.log(`> data (hex): ${hex(record.data.buffer)}`);
+        console.assert(record.recordType == 'url');
+        const url = ab2str(record.data.buffer);
+        console.log(`> url: ${url}`);
+        document.querySelector('#log').innerHTML += `<a href="${url}">${url}</a>`;
+      }
+    });
+  } catch (error) {
+    log("ERROR - " + error);
+  }
+});
+
+</script>
+</body>
+</html>
