@@ -83,11 +83,16 @@ scanButton.addEventListener("click", async () => {
       console.log(`> #records: (${message.records.length})`);
       for( i=0; i<message.records.length; i++) {
         const record = message.records[i];
-        console.log(`> data (hex): ${hex(record.data.buffer)}`);
-        console.assert(record.recordType == 'url');
-        const url = ab2str(record.data.buffer);
-        console.log(`> url: ${url}`);
-        document.querySelector('#log').innerHTML += `<a href="${url}">${url}</a>`;
+        if( record.data ) {
+          console.log(`> data (hex): ${hex(record.data.buffer)}`);
+          console.assert(record.recordType == 'url');
+          const url = ab2str(record.data.buffer);
+          console.log(`> url: ${url}`);
+          document.querySelector('#log').innerHTML += `<a href="${url}">${url}</a><hr/>`;
+        } else {
+          console.log(`record type: ${record.recordType}`);
+          document.querySelector('#log').innerHTML += `No data - record type: ${record.recordType}<hr/>`
+        }
       }
     });
   } catch (error) {
