@@ -50,7 +50,7 @@ async function create() {
 }
 
 window.onload=function(){
-    document.getElementById("origin").innerHTML = `<code>${ window.location.origin }</code>`;
+    document.getElementById("rpid").innerHTML = `<code>${ window.location.host }</code>`;
 }
 
 </script>
@@ -58,10 +58,10 @@ window.onload=function(){
 <h1>MinPinLength Tester</h1>
 
 <div >
-This page tests if your browser and FIDO security key support the minPinLength extension.
+This page tests if your browser supports the minPinLength extension.
   <ol>
-   <li>Use a FIDO2 security key that supports CTAP 2.1 minPinLength.</li>
-   <li>Set the list of RP IDs allowed to retrieve minimum PIN length to include <span id="origin">...</span>.</li>
+   <li>Use a FIDO2 security key that supports the CTAP 2.1 Minimum PIN Length Extension (minPinLength).</li>
+   <li>Set the list of RP IDs allowed to retrieve the minimum PIN length to include <span id="rpid">...</span>.</li>
   </ol>
 </div>
 
