@@ -22,19 +22,11 @@ const RS256 = -257; // RSA w/ SHA-256
 const user = { id: new Uint8Array(16), name: "deleteme", displayName: "Delete Me" };
 const challenge = new Uint8Array(32);
 
-function hex(ab /* ArrayBuffer */) {
-  return [...new Uint8Array(ab)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-function btoh(bytes /* Uint8Array */) {
-  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
 var createCredentialDefaultArgs = {
     publicKey: {
         challenge: challenge.buffer,
         rp: {
-            name: "EA test"
+            name: "minPinLength test"
         },
         user: user,
         pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
@@ -43,20 +35,18 @@ var createCredentialDefaultArgs = {
             residentKey: "preferred"
         },
         extensions: {
-          credProps: true,
           minPinLength: true
         }
     }
 };
 
 async function create() {
-    createCredentialDefaultArgs.publicKey.user = user;
     var cred = await navigator.credentials.create(createCredentialDefaultArgs)
     console.assert(cred.type == 'public-key');
     const extensions = cred.getClientExtensionResults();
     console.log("Extensions:", extensions);
     if( extensions.minPinLength )
-      document.getElementById("message").innerHTML += `&nbsp;Minimum PIN length: <code>${ extensions.minPinLength }</code>`;
+      document.getElementById("message").innerHTML += `&nbsp;Minimum PIN length: ${ extensions.minPinLength }`;
 }
 
 window.onload=function(){
@@ -65,7 +55,7 @@ window.onload=function(){
 
 </script>
 
-<h1>Enterprise Attestation Tester</h1>
+<h1>MinPinLength Tester</h1>
 
 <div >
 This page tests if your browser and FIDO security key support the minPinLength extension.
