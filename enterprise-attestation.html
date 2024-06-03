@@ -68,11 +68,13 @@ async function create() {
     console.assert( attestation.fmt == 'packed');
     const cert = new x509.X509Certificate(attestation.attStmt.x5c[0]); // skipping CA chain validation
     serial = getSerial(cert);
-    document.getElementById("message").innerHTML += `&nbsp;Security Key serial#: <code>${ serial }</code>`;
+    document.getElementById("message").innerHTML += `<hr/>Security Key serial#: <code>${ serial }</code>`;
 }
 
 window.onload=function(){
-    document.getElementById("origin").innerHTML = `<code>${ window.location.origin }</code>`;
+    document.getElementById("origin").innerHTML =
+      document.getElementById("chrome_origin").innerHTML =
+        `<code>${ window.location.origin }</code>`;
 }
 
 </script>
@@ -80,13 +82,17 @@ window.onload=function(){
 <h1>Enterprise Attestation Tester</h1>
 
 <div >
-This page tests if your browser and FIDO security key support Enterprise Attestation.
-  <ol>
+This page tests if your browser and FIDO security key support (platform-managed) Enterprise Attestation.
+  <ul>
    <li>Use a FIDO2 security key that supports FIDO Enterprise Attestation.</li>
    <li>Set the origin for allowing enterprise attestation to <span id="origin">...</span>.</li>
+  </ul>
+       When using Chrome:
+  <ol>
+   <li>Open <code>chrome://flags/#web-authentication-permit-enterprise-attestation</code>
+   <li>Enable <b>Web Authentication Enterprise Attestation</b>
+   <li>Add <span id="chrome_origin">...</span> to the set of origins in the textbox
   </ol>
-       When using Chrome, enable <code>chrome://flags/#web-authentication-permit-enterprise-attestation</code>
-       to permit a set of origins to request an attestation statement from a security key when creating a Web Authentication credential.
 </div>
 
 <button class="button" id="create" onClick="create()">Test Enterprise Attestation support</button>
