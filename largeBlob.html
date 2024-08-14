@@ -30,7 +30,7 @@ var createCredentialDefaultArgs = {
           requireResidentKey: true,
           residentKey: "required",
           authenticatorAttachment: "cross-platform",
-          userVerification: "required"
+          //userVerification: "required"
         },
         excludeCredentials: [],
         extensions: {
@@ -58,7 +58,10 @@ function create() {
         createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: cred.rawId, type: "public-key"} ]; // prevent re-registration
         getCredentialDefaultArgs.publicKey.allowCredentials = [ {id: cred.rawId, type: "public-key"} ]; // for use with credentials.get
         const extensions = cred.getClientExtensionResults();
-        document.getElementById("message").innerHTML += `<br/>credential created, largeBlob ${ extensions.largeBlob.supported ? '' : 'NOT' } supported`;
+        if( extensions.largeBlob )
+          document.getElementById("message").innerHTML += `<br/>credential created, largeBlob ${ extensions.largeBlob.supported ? '' : 'NOT' } supported`;
+        else
+          document.getElementById("message").innerHTML += `<br/>credential created, largeBlob not supported`;
     }).catch((e) => {
         document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
     })
