@@ -48,8 +48,6 @@ var getCredentialDefaultArgs = {
         challenge: challenge.buffer,
         allowCredentials: [],
 	extensions: {
-          largeBlob: {
-          }
         }
     },
 };
@@ -57,8 +55,8 @@ var getCredentialDefaultArgs = {
 function create() {
     self.crypto.getRandomValues(challenge); // generate a random challenge
     navigator.credentials.create(createCredentialDefaultArgs).then( (cred) => {
-        createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: cred.rawId, type: "public-key"} ); // prevent re-registration
-        getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: cred.rawId, type: "public-key"} ); // for use with credentials.get
+        createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: cred.rawId, type: "public-key"} ]; // prevent re-registration
+        getCredentialDefaultArgs.publicKey.allowCredentials = [ {id: cred.rawId, type: "public-key"} ]; // for use with credentials.get
         const extensions = cred.getClientExtensionResults();
         document.getElementById("message").innerHTML += `<br/>credential created, largeBlob ${ extensions.largeBlob.supported ? '' : 'NOT' } supported`;
     }).catch((e) => {
@@ -67,16 +65,12 @@ function create() {
 }
 
 function read_blob() {
-    if(getCredentialDefaultArgs.publicKey.allowCredentials.length == 1)
-        getCredentialDefaultArgs.publicKey.extensions.largeBlob = { read: true };
+    getCredentialDefaultArgs.publicKey.extensions.largeBlob = { read: true };
     self.crypto.getRandomValues(challenge);
     navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => {
-        if(getCredentialDefaultArgs.publicKey.allowCredentials.length < 1) {
-            document.getElementById("message").innerHTML += `<br/>retrieved credential: read again to retrieve largeBlob data (if any)`;
-            createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: assertion.rawId, type: "public-key"} ); // prevent re-registration (will overwrite)
-            getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: assertion.rawId, type: "public-key"} ); // use with credentials.get
-        }
-        // ... omitting signature verification
+        createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: assertion.rawId, type: "public-key"} ]; // prevent re-registration (will overwrite)
+        getCredentialDefaultArgs.publicKey.allowCredentials = [ {id: assertion.rawId, type: "public-key"} ]; // use with subsequent credentials.get
+        // ... skipping server processing for demo purposes
         const extensions = assertion.getClientExtensionResults();
         if( extensions.largeBlob ) {
           if( extensions.largeBlob.blob ) {
@@ -84,6 +78,8 @@ function read_blob() {
           } else {
             document.getElementById("message").innerHTML += `<br/>largeBlob read (no blob data stored yet)`;
           }
+        } else {
+            document.getElementById("message").innerHTML += `<br/>largeBlob not supported`;
         }
     }).catch((e) => {
         document.getElementById("message").innerHTML += `<br/><b>read failed</b>: ${ e.message }`;
@@ -94,12 +90,11 @@ function write_blob() {
     if(getCredentialDefaultArgs.publicKey.allowCredentials.length != 1) { // The 'largeBlob' extension's 'write' parameter can only be used with a single credential present on 'allowCredentials'
         document.getElementById("message").innerHTML += `<br/>Please create or read first`;
 	return;
-    } else {
-        getCredentialDefaultArgs.publicKey.extensions.largeBlob = { write: str2ab( document.getElementById("data").value ) };
     }
+    getCredentialDefaultArgs.publicKey.extensions.largeBlob = { write: str2ab( document.getElementById("data").value ) };
     self.crypto.getRandomValues(challenge);
     navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => {
-        // ... omitting signature verification
+        // ... skipping server processing for demo purposes
         const extensions = assertion.getClientExtensionResults();
         if( extensions.largeBlob ) {
           document.getElementById("message").innerHTML += `<br/>largeBlob written: ${ JSON.stringify(extensions.largeBlob) }`;
