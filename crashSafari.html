@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script>
+var challenge = new Uint8Array(32);
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        allowCredentials: [],
+	extensions: {
+          largeBlob: {
+          }
+        }
+    },
+};
+
+function get() {
+    navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => { })
+}
+
+</script>
+
+<div>
+    <button id="get"   onClick="get()">get</button>
+</div>
+
+</body>
+</html>
