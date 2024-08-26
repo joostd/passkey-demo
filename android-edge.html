@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+var userID = new Uint8Array(16);
+var challenge = new Uint8Array(32);
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        rp: { name: "Example Relying Party" },
+        user: { id: userID.buffer, name: "deleteMe", displayName: "Some User" },
+        pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 } ],
+        authenticatorSelection: { authenticatorAttachment: "cross-platform", },
+        attestation: "direct",
+        challenge: challenge.buffer
+    }
+};
+
+async function create() {
+    cred = await navigator.credentials.create(createCredentialDefaultArgs);
+    const response = cred.response;
+    const json = { clientDataJSON:  hex(cred.response.clientDataJSON), attestationObject: hex(response.attestationObject) };
+    document.getElementById("message").innerHTML = JSON.stringify(json);
+}
+
+function hex(ab /* ArrayBuffer */) {
+  return [...new Uint8Array(ab)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function copyToClipboard() {
+  var text = document.getElementById("message").innerText;
+  navigator.clipboard.writeText(text);
+  console.log("Copied the text: " + text);
+}
+
+
+</script>
+
+<p>Test page for Android devices running Edge, which generate invalid attestation signatures.
+<p>Create a credential and click Copy text to share the resulting JSON.
+
+<div>
+    <button id="create" onClick="create()">create</button>
+    <button onclick="copyToClipboard()">Copy text</button>
+</div>
+
+<hr/>
+
+<div id="message" class="info">
+</div>
+
+</body>
+</html>
