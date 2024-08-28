@@ -33,7 +33,9 @@ var createCredentialDefaultArgs = {
 };
 
 async function create() {
+    document.getElementById("message").innerHTML = 'creating...'
     cred = await navigator.credentials.create(createCredentialDefaultArgs);
+    document.getElementById("message").innerHTML += '=> ' + cred
     const response = cred.response;
     const json = { clientDataJSON:  hex(cred.response.clientDataJSON), attestationObject: hex(response.attestationObject) };
     document.getElementById("message").innerHTML = JSON.stringify(json);
