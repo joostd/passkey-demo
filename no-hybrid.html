@@ -62,8 +62,9 @@ async function create() {
         getOptions.publicKey.allowCredentials.push(entry); // filter for credentials.get
         createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
 	message = `credential created: ${ credid(cred.rawId) }`;
-	message += `[${cred.authenticatorAttachment}]`;
-	message += (transports.length > 0) ? `[${transports.join("+")}]` : '';
+	message += ` [${cred.authenticatorAttachment}]`;
+	message +=  backupEligibility ? ` [syncable]` : '';
+	message += (transports.length > 0) ? ` [${transports.join("+")}]` : '';
     } catch(e) {
         message = `<b>Registration failed</b>: ${ e }`;
     } finally {
@@ -77,9 +78,7 @@ async function get() {
     try {
         const assertion = await navigator.credentials.get(getOptions);
         console.log(assertion.toJSON());
-        // ... verify signature
-        message = `obtained an assertion for credential ID ${ credid(assertion.rawId) }`;
-	message += `[${assertion.authenticatorAttachment}]`;
+        // ignoring signature :-)
 	let entry;
         for (c in getOptions.publicKey.allowCredentials) {
 		entry = getOptions.publicKey.allowCredentials[c];	// entry should be unique
@@ -93,6 +92,8 @@ async function get() {
 	if(assertion.authenticatorAttachment == 'cross-platform' && entry.transports.includes('hybrid')) {
 		throw("Cross-device sign in is not allowed")
 	}
+        message = `obtained an assertion for credential ID ${ credid(assertion.rawId) }`;
+	message += ` [${assertion.authenticatorAttachment}]`;
     } catch(e) {
         message = `<b>Authentication failed</b>: ${ e }`;
     } finally {
@@ -110,7 +111,7 @@ function hex(ab) { // ArrayBuffer ab
 
 </script>
 
-<p>Example Relying Party that allows syncable passkeys, but discourages cross-device authentication.
+<p>Example Relying Party that disallows cross-device authentication to rule out attacks from rogue clients in their vicinity.
 
 <p>Note: all credentials will be "forgotten" when this page reloads. To manage your stored passkeys:
 <li>for passkeys stored in your Chrome profile: chrome://settings/passkeys
