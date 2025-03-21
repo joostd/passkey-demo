@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disable hybrid flows</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 
 <script>
@@ -44,16 +49,14 @@ async function create() {
     try {
 	cred = await navigator.credentials.create(createOptions);
         console.log(cred.toJSON());
-        authenticatorData = cred.response.getAuthenticatorData();
-        flags = new Uint8Array(authenticatorData.slice(32,33)); // 1 uint8
-	backupEligibility = (flags[0]&0x08) > 0;
         transports = cred.response.getTransports();
+        flags = new Uint8Array(cred.response.getAuthenticatorData().slice(32,33)); // 1 uint8
         entry = {
 		id: cred.rawId,
 		type: "public-key",
-		transports: cred.response.getTransports(),
+		transports: transports,
 		authenticatorAttachment: cred.authenticatorAttachment,	// used as credential store (ignored by WebAuthn)
-		backupEligibility: backupEligibility,
+		backupEligibility: (flags[0]&0x08) > 0,
 	};
 	// Are we allowed to register?
 	if( cred.authenticatorAttachment == 'cross-platform' && transports.includes('hybrid')) {
