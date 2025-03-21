@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+var challenge = new Uint8Array(32); // don't care, as we're not verifying anything here
+var userID = new Uint8Array(16);
+self.crypto.getRandomValues(userID); // generate new userID on reload
+
+var createOptions = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Dummy User"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        hints: [ "security-key", "client-device" ], // no hybrid please
+        excludeCredentials: [],
+        challenge: challenge.buffer
+    }
+};
+
+var getOptions = {
+    publicKey: {
+        challenge: challenge.buffer,
+        allowCredentials: [],
+        hints: [ "security-key", "client-device" ], // no hybrid please
+    },
+};
+
+async function create() {
+    console.log(createOptions)
+    try {
+	cred = await navigator.credentials.create(createOptions);
+        console.log(cred.toJSON());
+        authenticatorData = cred.response.getAuthenticatorData();
+        flags = new Uint8Array(authenticatorData.slice(32,33)); // 1 uint8
+	backupEligibility = (flags[0]&0x08) > 0;
+        transports = cred.response.getTransports();
+        entry = {
+		id: cred.rawId,
+		type: "public-key",
+		transports: cred.response.getTransports(),
+		authenticatorAttachment: cred.authenticatorAttachment,	// used as credential store (ignored by WebAuthn)
+		backupEligibility: backupEligibility,
+	};
+	// Are we allowed to register?
+	if( cred.authenticatorAttachment == 'cross-platform' && transports.includes('hybrid')) {
+		throw("Cross-device registration is not allowed")
+	}
+        getOptions.publicKey.allowCredentials.push(entry); // filter for credentials.get
+        createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
+	message = `credential created: ${ credid(cred.rawId) }`;
+	message += `[${cred.authenticatorAttachment}]`;
+	message += (transports.length > 0) ? `[${transports.join("+")}]` : '';
+    } catch(e) {
+        message = `<b>Registration failed</b>: ${ e }`;
+    } finally {
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    }
+}
+
+async function get() {
+    self.crypto.getRandomValues(challenge);
+    console.log(getOptions)
+    try {
+        const assertion = await navigator.credentials.get(getOptions);
+        console.log(assertion.toJSON());
+        // ... verify signature
+        message = `obtained an assertion for credential ID ${ credid(assertion.rawId) }`;
+	message += `[${assertion.authenticatorAttachment}]`;
+	let entry;
+        for (c in getOptions.publicKey.allowCredentials) {
+		entry = getOptions.publicKey.allowCredentials[c];	// entry should be unique
+		if( hex(entry.id) == hex(assertion.rawId)) { // use string comparison
+			break;
+		}
+	}
+	if( !entry ) throw(`unknown credential: ${credid(assertion.rawId)}`)
+	console.log(`entry ${hex(assertion.rawId)}`);
+	// Are we allowed to sign in?
+	if(assertion.authenticatorAttachment == 'cross-platform' && entry.transports.includes('hybrid')) {
+		throw("Cross-device sign in is not allowed")
+	}
+    } catch(e) {
+        message = `<b>Authentication failed</b>: ${ e }`;
+    } finally {
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    }
+}
+
+function credid(id) {
+  return hex(id).substring(0,10) + "..."
+}
+
+function hex(ab) { // ArrayBuffer ab
+  return [...new Uint8Array(ab)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+</script>
+
+<p>Example Relying Party that allows syncable passkeys, but discourages cross-device authentication.
+
+<p>Note: all credentials will be "forgotten" when this page reloads. To manage your stored passkeys:
+<li>for passkeys stored in your Chrome profile: chrome://settings/passkeys
+<li>for passkeys stored on Security Keys: chrome://settings/securityKeys (this page won't store resident keys)
+<li>for passkeys stored in Passkey Providers: use you provider-specific application (eg Passwords.app for iCloud)
+
+<hr/>
+
+<div>
+  <button id="#create" onClick="create()">create</button>
+  <button id="#get" onClick="get()">get</button>
+</div>
+
+<div id="message" class="info">
+</div>
+
+</body>
+</html>
