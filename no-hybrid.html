@@ -48,15 +48,16 @@ async function create() {
     console.log(createOptions)
     try {
 	cred = await navigator.credentials.create(createOptions);
-        console.log(cred.toJSON());
+        if (cred.toJSON) console.log(cred.toJSON());
         transports = cred.response.getTransports();
         flags = new Uint8Array(cred.response.getAuthenticatorData().slice(32,33)); // 1 uint8
+	backupEligibility = (flags[0]&0x08) > 0;
         entry = {
 		id: cred.rawId,
 		type: "public-key",
 		transports: transports,
 		authenticatorAttachment: cred.authenticatorAttachment,	// used as credential store (ignored by WebAuthn)
-		backupEligibility: (flags[0]&0x08) > 0,
+		backupEligibility: backupEligibility,
 	};
 	// Are we allowed to register?
 	if( cred.authenticatorAttachment == 'cross-platform' && transports.includes('hybrid')) {
@@ -80,7 +81,7 @@ async function get() {
     console.log(getOptions)
     try {
         const assertion = await navigator.credentials.get(getOptions);
-        console.log(assertion.toJSON());
+        if (assertion.toJSON) console.log(assertion.toJSON());
         // ignoring signature :-)
 	let entry;
         for (c in getOptions.publicKey.allowCredentials) {
@@ -104,8 +105,12 @@ async function get() {
     }
 }
 
+function color(id) {
+  return hex(id).substring(0,6);
+}
+
 function credid(id) {
-  return hex(id).substring(0,10) + "..."
+  return `<span style="color:#${ color(id) }">${ hex(id).substring(0,10) + "..." }</span>`;
 }
 
 function hex(ab) { // ArrayBuffer ab
