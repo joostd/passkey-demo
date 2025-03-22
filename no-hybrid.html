@@ -48,7 +48,7 @@ async function create() {
     console.log(createOptions)
     try {
 	cred = await navigator.credentials.create(createOptions);
-        if (cred.toJSON) console.log(cred.toJSON());
+	console.log( cred.toJSON ? cred.toJSON() : cred );
         transports = cred.response.getTransports();
         flags = new Uint8Array(cred.response.getAuthenticatorData().slice(32,33)); // 1 uint8
 	backupEligibility = (flags[0]&0x08) > 0;
@@ -81,7 +81,7 @@ async function get() {
     console.log(getOptions)
     try {
         const assertion = await navigator.credentials.get(getOptions);
-        if (assertion.toJSON) console.log(assertion.toJSON());
+	console.log( assertion.toJSON ? assertion.toJSON() : assertion );
         // ignoring signature :-)
 	let entry;
         for (c in getOptions.publicKey.allowCredentials) {
