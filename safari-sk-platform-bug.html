@@ -30,9 +30,9 @@ var createOptions = {
             { type: "public-key", alg: ES256 },
             { type: "public-key", alg: RS256 }
         ],
-        hints: [ "security-key" ],
+        hints: [ "security-key", "hybrid" ], // cross-platform hints
         authenticatorSelection: {
-          authenticatorAttachment: "cross-platform",
+          //authenticatorAttachment: "cross-platform",
         },
         challenge: challenge.buffer
     }
@@ -43,8 +43,7 @@ async function create() {
     try {
 	cred = await navigator.credentials.create(createOptions);
 	console.log( cred.toJSON ? cred.toJSON() : cred );
-	message = `credential created with authenticatorAttachment: `;
-	message += ` ${cred.authenticatorAttachment}`;
+	message = `credential created with authenticatorAttachment <b>${cred.authenticatorAttachment}</b> and transports <b>${cred.response.getTransports().join(", ")}</b>`;
     } catch(e) {
         message = `<b>Registration failed</b>: ${ e }`;
     } finally {
@@ -53,7 +52,8 @@ async function create() {
 }
 </script>
 
-<p>Safari 18.3 (and probably other versions as well) incorrectly reports <code>platform</code> authenticatorAttachment for credentials created on security keys.
+<h3>Safari authenticatorAttachment bug demo</h3>
+<p>Safari (up to version 18.3) incorrectly reports <code>platform</code> authenticatorAttachment for credentials created on external devices (i.e. security keys or mobile phones using hybrid transport).
 <hr/>
 
 <div>
