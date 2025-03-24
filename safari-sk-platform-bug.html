@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disable hybrid flows</title>
+   <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+var challenge = new Uint8Array(32); // don't care, as we're not verifying anything here
+var userID = new Uint8Array(16);
+self.crypto.getRandomValues(userID); // generate new userID on reload
+
+var createOptions = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Dummy User"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        hints: [ "security-key" ],
+        authenticatorSelection: {
+          authenticatorAttachment: "cross-platform",
+        },
+        challenge: challenge.buffer
+    }
+};
+
+async function create() {
+    console.log(createOptions)
+    try {
+	cred = await navigator.credentials.create(createOptions);
+	console.log( cred.toJSON ? cred.toJSON() : cred );
+	message = `credential created with authenticatorAttachment: `;
+	message += ` ${cred.authenticatorAttachment}`;
+    } catch(e) {
+        message = `<b>Registration failed</b>: ${ e }`;
+    } finally {
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    }
+}
+</script>
+
+<p>Safari 18.3 (and probably other versions as well) incorrectly reports <code>platform</code> authenticatorAttachment for credentials created on security keys.
+<hr/>
+
+<div>
+  <button class="button" id="#create" onClick="create()">create</button>
+</div>
+
+<div id="message" class="info">
+<script>
+document.write(`<br/>You are using: <code>${ navigator.appVersion }</code> (navigator.appVersion)`);
+</script>
+</div>
+
+</body>
+</html>
