@@ -1,4 +1,4 @@
-// https://github.com/passkeydeveloper/passkeyauthenticatoraaguids/blob/main/aaguid.json
+// curl -s https://raw.githubusercontent.com/passkeydeveloper/passkey-authenticator-aaguids/refs/heads/main/aaguid.json | jq 'map_values(.name)'
 providers = {
 	'ea9b8d664d011d213ce4b6b48cb575d4': 'Google Password Manager',
 	'adce000235bcc60a648b0b25f1f05503': 'Chrome on Mac',
@@ -25,6 +25,12 @@ providers = {
 	'50726f746f6e5061737350726f746f6e': 'Proton Pass',
 	'fdb141b25d84443e8a354698c205a502': 'KeePassXC',
 	'cc45f64e52a2451b831a4edd8022a202': 'ToothPic Passkey Provider',
+	'bfc748bb34294faab9f97cfa9f3b76d0': 'iPasswords',
+	'b35a26b28f6e4697ab1dd44db4da28c6': 'Zoho Vault',
+	'b78a0a556ef8d246a042ba0f6d55050c': 'LastPass',
+	'de503f9c21a44f76b4b7558eb55c6f89': 'Devolutions',
+	'22248c4c7a1246e29a4144291b373a4d': 'LogMeOnce',
+	'a10c6dd9465e42268198c7c44b91c555': 'Kaspersky Password Manager'
 };
 
 function base64URLdecode(str) {
