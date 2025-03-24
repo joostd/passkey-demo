@@ -3,7 +3,8 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Disable hybrid flows</title>
-  <link rel="stylesheet" href="style.css">
+   <link rel="stylesheet" href="style.css">
+   <script src="common/mds.js"></script>
 </head>
 <body>
 
@@ -50,14 +51,18 @@ async function create() {
 	cred = await navigator.credentials.create(createOptions);
 	console.log( cred.toJSON ? cred.toJSON() : cred );
         transports = cred.response.getTransports();
-        flags = new Uint8Array(cred.response.getAuthenticatorData().slice(32,33)); // 1 uint8
+        authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+        flags = new Uint8Array(authenticatorData.slice(32,33)); // 1 uint8
+        aaguid = authenticatorData.slice(37,53); // 16 bytes
 	backupEligibility = (flags[0]&0x08) > 0;
         entry = {
 		id: cred.rawId,
 		type: "public-key",
 		transports: transports,
-		authenticatorAttachment: cred.authenticatorAttachment,	// used as credential store (ignored by WebAuthn)
+		// used as credential store (ignored by WebAuthn):
+		authenticatorAttachment: cred.authenticatorAttachment,
 		backupEligibility: backupEligibility,
+		aaguid: aaguid,
 	};
 	// Are we allowed to register?
 	if( cred.authenticatorAttachment == 'cross-platform' && transports.includes('hybrid')) {
@@ -65,10 +70,12 @@ async function create() {
 	}
         getOptions.publicKey.allowCredentials.push(entry); // filter for credentials.get
         createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
+
 	message = `credential created: ${ credid(cred.rawId) }`;
 	message += ` [${cred.authenticatorAttachment}]`;
-	message +=  backupEligibility ? ` [syncable]` : '';
-	message += (transports.length > 0) ? ` [${transports.join("+")}]` : '';
+	if(transports.length > 0) message += ` [${transports.join("+")}]`;
+	if(backupEligibility) message += ` [syncable]`;
+	if(hex(aaguid) in providers) message += ` [${ providers[hex(aaguid)] }]`;
     } catch(e) {
         message = `<b>Registration failed</b>: ${ e }`;
     } finally {
@@ -77,6 +84,10 @@ async function create() {
 }
 
 async function get() {
+    if( getOptions.publicKey.allowCredentials.length == 0 ) {
+        document.getElementById("message").innerHTML += '<br/>Please register a credential first'
+	return;
+    }
     self.crypto.getRandomValues(challenge);
     console.log(getOptions)
     try {
@@ -129,11 +140,14 @@ function hex(ab) { // ArrayBuffer ab
 <hr/>
 
 <div>
-  <button id="#create" onClick="create()">create</button>
-  <button id="#get" onClick="get()">get</button>
+  <button class="button" id="#create" onClick="create()">create</button>
+  <button class="button" id="#get" onClick="get()">get</button>
 </div>
 
 <div id="message" class="info">
+<script>
+document.write(`<br/>You are using: <code>${ navigator.appVersion }</code> (navigator.appVersion)`);
+</script>
 </div>
 
 </body>

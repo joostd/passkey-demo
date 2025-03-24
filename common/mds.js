@@ -39,10 +39,8 @@ function base64URLdecode(str) {
 
 let json = null;
 
-async function mds(aaguid) {
-  if( !json ) {
-console.log(json)
-  console.log(`lookup AAGUID ${aaguid} in MDS`);
+async function loadMDS() {
+  console.log(`downloading metadata from MDS`);
   const response = await fetch("https://mds.fidoalliance.org/", { mode: "cors" } );
   const jwt = await response.text();
   const parts = jwt.split('.');
@@ -51,7 +49,11 @@ console.log(json)
   const decoded = base64URLdecode(body);
   json = JSON.parse(decoded);
   console.log(`loaded ${json.entries.length} entries`);
-  }
+}
+
+async function mds(aaguid) {
+  console.log(`lookup AAGUID ${aaguid} in MDS`);
+  if( !json ) await loadMDS();
   for( i in json.entries ) {
     entry = json.entries[i];
     if(entry.aaguid == aaguid) {
