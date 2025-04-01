@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRF demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
+
 <script>
-
 const ES256 = -7; // ECDSA w/ SHA-256
-
 const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
 
 // convert from ArrayBuffer to binary string:
@@ -37,11 +41,6 @@ var createCredentialDefaultArgs = {
             type: "public-key",
             alg: ES256
         }],
-        authenticatorSelection: {
-            // requireResidentKey: true,
-            // residentKey: "required",
-            authenticatorAttachment: "cross-platform", // "platform",
-        },
     	extensions: { 
             prf: {
                 eval: {
@@ -55,7 +54,6 @@ var createCredentialDefaultArgs = {
 var getCredentialDefaultArgs = {
     publicKey: {
         challenge: challenge.buffer,
-        authenticatorSelection: { authenticatorAttachment: 'cross-platform'},
         extensions: { 
             prf: {
                 eval: {
@@ -119,7 +117,7 @@ async function create() {
 async function get() {
     self.crypto.getRandomValues(challenge);
     if( user !== null) {
-        if(  user.idList != undefined) {
+        if( user.idList != undefined) {
             getCredentialDefaultArgs.publicKey.allowCredentials = user.idList;
         }
     } else {
@@ -226,22 +224,26 @@ function btoh(bytes /* Uint8Array */) {
 }
 
 </script>
-<button id="create" onClick="create()">register</button>
-<button id="get"    onClick="get()">encrypt</button>
+
+<h3>PRF demo</h3>
+<p>Encrypt/Decrypt a message using the PRF extension.
+<hr>
+<button class="button" id="create" onClick="create()">register</button>
+<button class="button" id="get"    onClick="get()">encrypt</button>
 <br/>
 <label for="secret">Secret message:</label>
 <br/>
 <textarea id="secret">Hello, world!</textarea>
 
 <div id="message" class="info">
+Instructions:
 <ul>
-    <li>Use Chrome <s>Canary</s></li>
+   <li>Register a passkey first</li> 
    <li>Enable javascript console to view log messages</li> 
-   <li>Use a FIDO2 key that supports the <code>hmac-secret</code> extension</li>
    <li>Reload to start over...</li>
+</ul>
 
 </div>
    
-</ul>
 </body>
 </html>
