@@ -33,6 +33,9 @@ function btoh(bytes /* Uint8Array */) {
   return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+// chrome://flags/#enable-debug-for-secure-payment-confirmation
+// Enable to remove the restriction that PaymentCredential in WebAuthn and secure payment confirmation in PaymentRequest API must use user verifying platform authenticators.
+
 const createOptions = {
     publicKey: {
         challenge: challenge.buffer,
@@ -42,7 +45,8 @@ const createOptions = {
         user: user,
         pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
         authenticatorSelection: {
-            authenticatorAttachment: "platform",
+            // A platform authenticator is required for 'payment' extension.
+            //authenticatorAttachment: "platform",
             residentKey: "required",
             userVerification: "required"
         },
@@ -53,7 +57,8 @@ const createOptions = {
     },
 };
 
-// The "secure-payment-confirmation" method requires a valid HTTPS URL in the "payeeOrigin" field - won't work on localhost :-(
+// The "secure-payment-confirmation" method requires a valid HTTPS URL in the "payeeOrigin" field
+// won't work on localhost, even when added to chrome://flags/#unsafely-treat-insecure-origin-as-secure :-(
 const supportedInstruments = [
     {
         supportedMethods: "secure-payment-confirmation",
@@ -81,7 +86,7 @@ async function create() {
     const cred = await navigator.credentials.create(createOptions)
     console.log( cred.toJSON ? cred.toJSON() : cred );
     authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
-    console.log("authenticatorData:", authenticatorData);
+    console.log("authenticatorData:", hex(authenticatorData));
     attestation = cbor_decode(cred.response.attestationObject);
     console.log("Attestation:", attestation);
     entry = {
@@ -109,11 +114,20 @@ async function get() {
     const clientData = clientDataJSON = JSON.parse(decoder.decode(response.details.response.clientDataJSON));
     console.log("clientData:", clientData);
     console.assert(clientData.type === 'payment.get');
+    console.assert(clientData.crossOrigin === false);
+    //console.assert(clientData.challenge === );
+    console.assert(clientData.origin === window.location.origin);
+    console.assert(clientData.payment.rpId === window.location.host);
+    console.assert(clientData.payment.payeeOrigin === window.location.origin);
+    console.assert(clientData.payment.topOrigin === window.location.origin);
     // ignoring signature :-)
-    const authenticatorData = (decoder.decode(response.details.response.authenticatorData));
+    //const authenticatorData = (decoder.decode(response.details.response.authenticatorData));
+    const authenticatorData = (hex(response.details.response.authenticatorData));
     console.log("authenticatorData:", authenticatorData);
     message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
+    // why is the SPC dialog not closing ?
+    //await request.abort(); // TODO
 }
 
 /*
