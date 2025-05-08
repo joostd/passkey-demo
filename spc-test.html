@@ -112,7 +112,7 @@ async function get() {
     // ignoring signature :-)
     const authenticatorData = (decoder.decode(response.details.response.authenticatorData));
     console.log("authenticatorData:", authenticatorData);
-    message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value)`;
+    message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
 }
 
