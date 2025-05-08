@@ -46,7 +46,7 @@ const createOptions = {
         pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
         authenticatorSelection: {
             // A platform authenticator is required for 'payment' extension.
-            //authenticatorAttachment: "platform",
+            authenticatorAttachment: "platform",
             residentKey: "required",
             userVerification: "required"
         },
@@ -85,18 +85,20 @@ async function create() {
     createOptions.publicKey.user = user;
     const cred = await navigator.credentials.create(createOptions)
     console.log( cred.toJSON ? cred.toJSON() : cred );
+    console.assert(cred.type === 'public-key');
     authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
     console.log("authenticatorData:", hex(authenticatorData));
     attestation = cbor_decode(cred.response.attestationObject);
     console.log("Attestation:", attestation);
+    console.log("AuthData:", attestation.authData);
     entry = {
         id: cred.rawId,
         type: cred.type,
         transports: cred.response.getTransports()
     };
     createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
-    supportedInstruments[0].data.credentialIds.push(cred.rawId); // filter for credentials.get
-    document.getElementById("message").innerHTML += `<hr/>credential type: <code>${ cred.type }</code>`;
+    supportedInstruments[0].data.credentialIds.push(cred.rawId); // filter for payment.get
+    document.getElementById("message").innerHTML += `<hr/>created credential: <code>${ cred.id }</code>`;
 }
 
 async function get() {
@@ -106,6 +108,8 @@ async function get() {
     const canMakePayment = await request.canMakePayment(); // true
     console.assert(canMakePayment);
     const response = await request.show();
+    await response.complete('success');
+    console.log(response);
     console.log( response.toJSON ? response.toJSON() : response );
     console.assert(response.methodName === "secure-payment-confirmation");
     console.log(`Id: ${hex(response.details.rawId)}`);
@@ -130,64 +134,20 @@ async function get() {
     //await request.abort(); // TODO
 }
 
-/*
-Example response:
-{
-    "requestId": "5d1a13d3-5878-4f09-ad0d-fcb0acccf74c",
-    "methodName": "secure-payment-confirmation",
-    "details": {
-        "authenticatorAttachment": "platform",
-        "clientExtensionResults": {},
-        "id": "fuwwYeMOHvEM6ZvUZppJZ0fX6bvxatekzHgfUAjMouU",
-        "rawId": "fuwwYeMOHvEM6ZvUZppJZ0fX6bvxatekzHgfUAjMouU",
-        "response": {
-            "authenticatorData": "-xebUH5mGXE0LXatFYlmSMtTRCRCR9HzvVo2LN9w4oMFAAAAAA",
-            "clientDataJSON": "eyJ0eXBlIjoicGF5bWVudC5nZXQiLCJjaGFsbGVuZ2UiOiI3Nm8zamU1RHBtN3hybVZ3d2E3X3RhNjNoTTJqN3ZWZ1l5UlBTMGltUFo4Iiwib3JpZ2luIjoiaHR0cHM6Ly84MzcyLTJhMDItYTQ0My01MTkzLTAtNDg5ZS00ZmRkLWEzZDYtNGU2NC5uZ3Jvay1mcmVlLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZSwicGF5bWVudCI6eyJycElkIjoiODM3Mi0yYTAyLWE0NDMtNTE5My0wLTQ4OWUtNGZkZC1hM2Q2LTRlNjQubmdyb2stZnJlZS5hcHAiLCJ0b3BPcmlnaW4iOiJodHRwczovLzgzNzItMmEwMi1hNDQzLTUxOTMtMC00ODllLTRmZGQtYTNkNi00ZTY0Lm5ncm9rLWZyZWUuYXBwIiwicGF5ZWVPcmlnaW4iOiJodHRwczovLzgzNzItMmEwMi1hNDQzLTUxOTMtMC00ODllLTRmZGQtYTNkNi00ZTY0Lm5ncm9rLWZyZWUuYXBwIiwidG90YWwiOnsidmFsdWUiOiIyMCIsImN1cnJlbmN5IjoiRVVSIn0sImluc3RydW1lbnQiOnsiaWNvbiI6ImRhdGE6aW1hZ2UvcG5nO2Jhc2U2NCxpVkJPUncwS0dnb0FBQUFOU1VoRVVnQUFBQkFBQUFBUUNBWUFBQUFmOC85aEFBQUFBWE5TUjBJQXJzNGM2UUFBQVJSSlJFRlVPRSt0azd0S0ExRVFocjlaeVExVVZnc2xpV1NEU2VFTlJCWVJMQ3g4Qnd1ZlFMQVR0TE5NSWZnb21xZXdFSzBFZytJbEdBSkpzTkZBWWhKM3MzdGt0MG1UWm5PY2JtRCtiMmFZZndUTkVFMDlvc3JiZTZETzhabU9CQk42NEYrS0t0c05GSmxJNGxGeFN5Nk9iRFdoT0pUSjZxWW00T1JRRTZDdS93SGdwOUs0K1FPVVVneCtIVkxKUkxoZmtJdU12M1NzZG9YUmJ5SEJCSjY1d2R0eWladjdCNGFleDByQm90Nzg1S3ZkWVgvWHB0UDlvVnB2NExoRGN1a0ZkcmJXbWJrN1pxcGRHUUZ1elZNS1ZwWmVmMERsOVlPMVlqN3MvdmhTWmQ2Y3BXZ3RrVXpFZVg2dmtjc3NrbjA2R3dFd1l2anh1VWpYTkp4djhOM0FpUnBHRXBxVFc5bWdDMUxTZjZaSWk0OHAvZ01PcW12VTRzeVRwUUFBQUFCSlJVNUVya0pnZ2c9PSIsImRpc3BsYXlOYW1lIjoiICJ9fX0",
-            "signature": "MEUCIQD4uieplwKFr3cg3F7a8zjvlaQPoGyP-70za6wwaITsOAIgDsqXuc6eCXGH__v4Fa4lzT4ydzCQ-0s_aUT6wETPXkQ",
-            "userHandle": "AAAAAAAAAAAAAAAAAAAAAA"
-        },
-        "type": "public-key"
-    },
-    "shippingAddress": null,
-    "shippingOption": null,
-    "payerName": null,
-    "payerEmail": null,
-    "payerPhone": null
-}
-
-clientDataJSON:
-{
-  "type": "payment.get",
-  "challenge": "ieEbCf80XRADCh9gv4ey-DfSg_9jgQHoKmPe_7_Ej0Y",
-  "origin": "https://8372-2a02-a443-5193-0-489e-4fdd-a3d6-4e64.ngrok-free.app",
-  "crossOrigin": false,
-  "payment": {
-    "rpId": "8372-2a02-a443-5193-0-489e-4fdd-a3d6-4e64.ngrok-free.app",
-    "topOrigin": "https://8372-2a02-a443-5193-0-489e-4fdd-a3d6-4e64.ngrok-free.app",
-    "payeeOrigin": "https://8372-2a02-a443-5193-0-489e-4fdd-a3d6-4e64.ngrok-free.app",
-    "total": {
-      "value": "20",
-      "currency": "EUR"
-    },
-    "instrument": {
-      "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAARRJREFUOE+tk7tKA1EQhr9ZyQ1UVgsliWSDSeENRBYRLCx8BwufQLATtLNMIfgomqewEK0Eg+IlGAJJsNFAYhJ3s3tkt0mTZnOcbmD+b2aYfwTNEE09osrbe6DO8ZmOBBN64F+KKtsNFJlI4lFxSy6ObDWhOJTJ6qYm4ORQE6Cu/wHgp9K4+QOUUgx+HVLJRLhfkIuMv3SsdoXRbyHBBJ65wdtyiZv7B4aex0rBot785KvdYX/XptP9oVpv4LhDcukFdrbWmbk7ZqpdGQFuzVMKVpZef0Dl9YO1Yj7s/vhSZd6cpWgtkUzEeX6vkcsskn06GwEwYvjxuUjXNJxv8N3AiRpGEpqTW9mgC1LSf6ZIi48p/gMOqmvU4syTpQAAAABJRU5ErkJggg==",
-      "displayName": " "
-    }
-  },
-  "other_keys_can_be_added_here": "do not compare clientDataJSON against a template. See https://goo.gl/yabPex"
-}
-
-*/
-
-
-console.log("PaymentRequest in window?", 'PaymentRequest' in window ? true : false);
-
 // chrome://flags/#is-secure-payment-confirmation-available-api
 window.onload=async function() {
+  console.log("PaymentRequest in window?", 'PaymentRequest' in window ? true : false);
   const spcAvailable = PaymentRequest && PaymentRequest.isSecurePaymentConfirmationAvailable &&
     await PaymentRequest.isSecurePaymentConfirmationAvailable();
   console.log("PaymentRequest.isSecurePaymentConfirmationAvailable:", spcAvailable);
+  if (PublicKeyCredential.getClientCapabilities) { // check for getClientCapabilities
+      const caps = await PublicKeyCredential.getClientCapabilities();
+      console.log("extension:payment:", caps['extension:payment']);
+  } else {
+      console.error('getClientCapabilities not implemented');
+  }
 }
+
 </script>
 
 <h1>SPC Tester</h1>
@@ -199,6 +159,7 @@ Simple (same-origin) demo page to test if your browser and FIDO Authenticator su
        such as a recent Chrome browser
    <li>To use a FIDO Security Key, open <code>chrome://flags/#enable-debug-for-secure-payment-confirmation</code>
    <li>Enable <b>Secure Payment Confirmation Debug Mode</b>
+   <li>Also, disable <b> Secure Payment Confirmation Network and Issuer Icons</b>, as that currently crashes Chrome. See <code>chrome://flags#enable-network-and-issuer-icons-for-secure-payment-confirmation</code>
    <li>When done, delete payment credentials from <code>chrome://settings/passkeys</code>
   </ol>
 </div>
