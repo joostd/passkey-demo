@@ -65,6 +65,14 @@ const supportedInstruments = [
         data: {
           rpId: window.location.host,
           credentialIds: [],
+          networkInfo: {
+	    name: 'Network',
+	    icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAARRJREFUOE+tk7tKA1EQhr9ZyQ1UVgsliWSDSeENRBYRLCx8BwufQLATtLNMIfgomqewEK0Eg+IlGAJJsNFAYhJ3s3tkt0mTZnOcbmD+b2aYfwTNEE09osrbe6DO8ZmOBBN64F+KKtsNFJlI4lFxSy6ObDWhOJTJ6qYm4ORQE6Cu/wHgp9K4+QOUUgx+HVLJRLhfkIuMv3SsdoXRbyHBBJ65wdtyiZv7B4aex0rBot785KvdYX/XptP9oVpv4LhDcukFdrbWmbk7ZqpdGQFuzVMKVpZef0Dl9YO1Yj7s/vhSZd6cpWgtkUzEeX6vkcsskn06GwEwYvjxuUjXNJxv8N3AiRpGEpqTW9mgC1LSf6ZIi48p/gMOqmvU4syTpQAAAABJRU5ErkJggg=='
+          },
+          issuerInfo: {
+	    name: 'Issuer',
+	    icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAARRJREFUOE+tk7tKA1EQhr9ZyQ1UVgsliWSDSeENRBYRLCx8BwufQLATtLNMIfgomqewEK0Eg+IlGAJJsNFAYhJ3s3tkt0mTZnOcbmD+b2aYfwTNEE09osrbe6DO8ZmOBBN64F+KKtsNFJlI4lFxSy6ObDWhOJTJ6qYm4ORQE6Cu/wHgp9K4+QOUUgx+HVLJRLhfkIuMv3SsdoXRbyHBBJ65wdtyiZv7B4aex0rBot785KvdYX/XptP9oVpv4LhDcukFdrbWmbk7ZqpdGQFuzVMKVpZef0Dl9YO1Yj7s/vhSZd6cpWgtkUzEeX6vkcsskn06GwEwYvjxuUjXNJxv8N3AiRpGEpqTW9mgC1LSf6ZIi48p/gMOqmvU4syTpQAAAABJRU5ErkJggg=='
+          },
           challenge: challenge.buffer,
           timeout: 10,
           instrument: {
@@ -76,10 +84,32 @@ const supportedInstruments = [
     }
 ];
 
+// const details = { total: {label: 'Total', amount: {currency: 'EUR', value: '20'}}, };
+
+// PaymentRequest: secure-payment-confirmation payment method identifier cannot be used with "requestShipping", "requestPayerName", "requestPayerEmail", or "requestPayerPhone" options.
+
+
 const details = {
-    total: {label: 'Total', amount: {currency: 'EUR', value: '20'}},
+  total: { label: "Donation", amount: { currency: "USD", value: "65.00" } },
+  displayItems: [
+    {
+      label: "Original donation amount",
+      amount: { currency: "USD", value: "65.00" },
+    },
+  ],
+  shippingOptions: [
+    {
+      id: "standard",
+      label: "Standard shipping",
+      amount: { currency: "USD", value: "0.00" },
+      selected: true,
+    },
+  ],
 };
 
+// secure-payment-confirmation payment method identifier cannot be used with "requestShipping" option
+// const options = { requestShipping: true };
+const options = {};
 
 async function create() {
     createOptions.publicKey.user = user;
@@ -104,17 +134,21 @@ async function create() {
 async function get() {
     self.crypto.getRandomValues(challenge);
     console.log(supportedInstruments);
-    const request = new PaymentRequest(supportedInstruments, details);
-    const canMakePayment = await request.canMakePayment(); // true
+try {
+    //const request = new PaymentRequest(supportedInstruments, details);
+    const request = new PaymentRequest(supportedInstruments, details, options);
+    const canMakePayment = await request.canMakePayment(); // check if the SPC call is valid.
     console.assert(canMakePayment);
     const response = await request.show();
     await response.complete('success');
     console.log(response);
     console.log( response.toJSON ? response.toJSON() : response );
     console.assert(response.methodName === "secure-payment-confirmation");
+    // response.details is a PublicKeyCredential
     console.log(`Id: ${hex(response.details.rawId)}`);
     message = `obtained an SPC for credential ID ${ (response.details.id) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
+    // clientDataJSON contains transaction data for verification by the issuing bank.
     const clientData = clientDataJSON = JSON.parse(decoder.decode(response.details.response.clientDataJSON));
     console.log("clientData:", clientData);
     console.assert(clientData.type === 'payment.get');
@@ -130,8 +164,9 @@ async function get() {
     console.log("authenticatorData:", authenticatorData);
     message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
-    // why is the SPC dialog not closing ?
-    //await request.abort(); // TODO
+} catch(e) {
+console.error(e);
+} 
 }
 
 // chrome://flags/#is-secure-payment-confirmation-available-api
@@ -150,16 +185,17 @@ window.onload=async function() {
 
 </script>
 
-<h1>SPC Tester</h1>
+<h1>Secure Payment Confirmation Tester</h1>
 
 <div >
-Simple (same-origin) demo page to test if your browser and FIDO Authenticator support SPC.
+Simple (same-origin) demo page to test if your browser and FIDO Authenticator support Secure Payment Confirmation (SPC).
   <ol>
    <li>Use a <a href="https://caniuse.com/mdn-api_paymentrequest_paymentrequest_secure_payment_confirmation_method">client that supports SPC</a>,
        such as a recent Chrome browser
-   <li>To use a FIDO Security Key, open <code>chrome://flags/#enable-debug-for-secure-payment-confirmation</code>
-   <li>Enable <b>Secure Payment Confirmation Debug Mode</b>
-   <li>Also, disable <b> Secure Payment Confirmation Network and Issuer Icons</b>, as that currently crashes Chrome. See <code>chrome://flags#enable-network-and-issuer-icons-for-secure-payment-confirmation</code>
+   <li>Enable <b>Secure Payment Confirmation Debug Mode</b> to use a FIDO security key that supports the CTAP 2.2 thirdPartyPayment extension.
+       See <code>chrome://flags/#enable-debug-for-secure-payment-confirmation</code>
+   <li>Optionally, enable <b> Secure Payment Confirmation Network and Issuer Icons</b>.
+       See <code>chrome://flags#enable-network-and-issuer-icons-for-secure-payment-confirmation</code>
    <li>When done, delete payment credentials from <code>chrome://settings/passkeys</code>
   </ol>
 </div>
