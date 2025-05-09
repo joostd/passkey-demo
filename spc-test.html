@@ -112,75 +112,99 @@ const details = {
 const options = {};
 
 async function create() {
-    createOptions.publicKey.user = user;
-    const cred = await navigator.credentials.create(createOptions)
-    console.log( cred.toJSON ? cred.toJSON() : cred );
-    console.assert(cred.type === 'public-key');
-    authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
-    console.log("authenticatorData:", hex(authenticatorData));
-    attestation = cbor_decode(cred.response.attestationObject);
-    console.log("Attestation:", attestation);
-    console.log("AuthData:", attestation.authData);
-    entry = {
-        id: cred.rawId,
-        type: cred.type,
-        transports: cred.response.getTransports()
-    };
-    createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
-    supportedInstruments[0].data.credentialIds.push(cred.rawId); // filter for payment.get
-    document.getElementById("message").innerHTML += `<hr/>created credential: <code>${ cred.id }</code>`;
+    try {
+        createOptions.publicKey.user = user;
+        const cred = await navigator.credentials.create(createOptions)
+        console.log( cred.toJSON ? cred.toJSON() : cred );
+        console.assert(cred.type === 'public-key');
+        authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+        console.log("authenticatorData:", hex(authenticatorData));
+        attestation = cbor_decode(cred.response.attestationObject);
+        console.log("Attestation:", attestation);
+        console.log("AuthData:", attestation.authData);
+        entry = {
+            id: cred.rawId,
+            type: cred.type,
+            transports: cred.response.getTransports()
+        };
+        createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
+        supportedInstruments[0].data.credentialIds.push(cred.rawId); // filter for payment.get
+        document.getElementById("message").innerHTML += `<hr/>created credential: <code>${ cred.id }</code>`;
+    } catch ({ name, message }) {
+        console.error(name, message);
+        document.getElementById("message").innerHTML += `<div>${message}</div>`;
+        if("NotSupportedError" === name)
+          document.getElementById("message").innerHTML += "<div>Note: to use a security key, enable Secure Payment Confirmation Debug Mode!</div>";
+    } 
 }
 
 async function get() {
     self.crypto.getRandomValues(challenge);
     console.log(supportedInstruments);
-try {
-    //const request = new PaymentRequest(supportedInstruments, details);
-    const request = new PaymentRequest(supportedInstruments, details, options);
-    const canMakePayment = await request.canMakePayment(); // check if the SPC call is valid.
-    console.assert(canMakePayment);
-    const response = await request.show();
-    await response.complete('success');
-    console.log(response);
-    console.log( response.toJSON ? response.toJSON() : response );
-    console.assert(response.methodName === "secure-payment-confirmation");
-    // response.details is a PublicKeyCredential
-    console.log(`Id: ${hex(response.details.rawId)}`);
-    message = `obtained an SPC for credential ID ${ (response.details.id) }`;
-    document.getElementById("message").innerHTML += '<br/>' + message;
-    // clientDataJSON contains transaction data for verification by the issuing bank.
-    const clientData = clientDataJSON = JSON.parse(decoder.decode(response.details.response.clientDataJSON));
-    console.log("clientData:", clientData);
-    console.assert(clientData.type === 'payment.get');
-    console.assert(clientData.crossOrigin === false);
-    //console.assert(clientData.challenge === );
-    console.assert(clientData.origin === window.location.origin);
-    console.assert(clientData.payment.rpId === window.location.host);
-    console.assert(clientData.payment.payeeOrigin === window.location.origin);
-    console.assert(clientData.payment.topOrigin === window.location.origin);
-    // ignoring signature :-)
-    //const authenticatorData = (decoder.decode(response.details.response.authenticatorData));
-    const authenticatorData = (hex(response.details.response.authenticatorData));
-    console.log("authenticatorData:", authenticatorData);
-    message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value) }`;
-    document.getElementById("message").innerHTML += '<br/>' + message;
-} catch(e) {
-console.error(e);
-} 
+    try {
+        //const request = new PaymentRequest(supportedInstruments, details);
+        const request = new PaymentRequest(supportedInstruments, details, options);
+        const canMakePayment = await request.canMakePayment(); // check if the SPC call is valid.
+        console.assert(canMakePayment);
+        const response = await request.show();
+        await response.complete('success');
+        console.log(response);
+        console.log( response.toJSON ? response.toJSON() : response );
+        console.assert(response.methodName === "secure-payment-confirmation");
+        // response.details is a PublicKeyCredential
+        console.log(`Id: ${hex(response.details.rawId)}`);
+        message = `obtained an SPC for credential ID ${ (response.details.id) }`;
+        document.getElementById("message").innerHTML += '<br/>' + message;
+        // clientDataJSON contains transaction data for verification by the issuing bank.
+        const clientData = clientDataJSON = JSON.parse(decoder.decode(response.details.response.clientDataJSON));
+        console.log("clientData:", clientData);
+        console.assert(clientData.type === 'payment.get');
+        console.assert(clientData.crossOrigin === false);
+        //console.assert(clientData.challenge === );
+        console.assert(clientData.origin === window.location.origin);
+        console.assert(clientData.payment.rpId === window.location.host);
+        console.assert(clientData.payment.payeeOrigin === window.location.origin);
+        console.assert(clientData.payment.topOrigin === window.location.origin);
+        // ignoring signature :-)
+        //const authenticatorData = (decoder.decode(response.details.response.authenticatorData));
+        const authenticatorData = (hex(response.details.response.authenticatorData));
+        console.log("authenticatorData:", authenticatorData);
+        message = `Total: ${ (clientData.payment.total.currency) } ${ (clientData.payment.total.value) }`;
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    } catch ({ name, message }) {
+        console.error(name, message);
+        if( "NotAllowedError" !== name && createOptions.publicKey.excludeCredentials.length === 0)
+          document.getElementById("message").innerHTML += "<div>Please create a payment credential first</div>";
+        else
+          document.getElementById("message").innerHTML += `<div>${message}</div>`;
+    } 
+}
+
+function changeUVPA(e) {
+    if(e.target.checked)
+        delete(createOptions.publicKey.authenticatorSelection.authenticatorAttachment);
+    else
+        createOptions.publicKey.authenticatorSelection.authenticatorAttachment = 'platform';
 }
 
 // chrome://flags/#is-secure-payment-confirmation-available-api
 window.onload=async function() {
   console.log("PaymentRequest in window?", 'PaymentRequest' in window ? true : false);
-  const spcAvailable = PaymentRequest && PaymentRequest.isSecurePaymentConfirmationAvailable &&
-    await PaymentRequest.isSecurePaymentConfirmationAvailable();
-  console.log("PaymentRequest.isSecurePaymentConfirmationAvailable:", spcAvailable);
+  if(PaymentRequest)
+    if(PaymentRequest.isSecurePaymentConfirmationAvailable) {
+      const spcAvailable = await PaymentRequest.isSecurePaymentConfirmationAvailable();
+      console.log("PaymentRequest.isSecurePaymentConfirmationAvailable:", spcAvailable);
+    } else
+      console.log("PaymentRequest.isSecurePaymentConfirmationAvailable not available");
+  else
+      console.log("PaymentRequest not available");
   if (PublicKeyCredential.getClientCapabilities) { // check for getClientCapabilities
       const caps = await PublicKeyCredential.getClientCapabilities();
       console.log("extension:payment:", caps['extension:payment']);
   } else {
       console.error('getClientCapabilities not implemented');
   }
+  document.getElementById("uvpa_checkbox").addEventListener("change", changeUVPA);
 }
 
 </script>
@@ -189,16 +213,28 @@ window.onload=async function() {
 
 <div >
 Simple (same-origin) demo page to test if your browser and FIDO Authenticator support Secure Payment Confirmation (SPC).
-  <ol>
+  <ul>
    <li>Use a <a href="https://caniuse.com/mdn-api_paymentrequest_paymentrequest_secure_payment_confirmation_method">client that supports SPC</a>,
        such as a recent Chrome browser
    <li>Enable <b>Secure Payment Confirmation Debug Mode</b> to use a FIDO security key that supports the CTAP 2.2 thirdPartyPayment extension.
-       See <code>chrome://flags/#enable-debug-for-secure-payment-confirmation</code>
-   <li>Optionally, enable <b> Secure Payment Confirmation Network and Issuer Icons</b>.
-       See <code>chrome://flags#enable-network-and-issuer-icons-for-secure-payment-confirmation</code>
+       <br><code>chrome://flags/#enable-debug-for-secure-payment-confirmation</code>
+   <li>Optionally, enable <b>Secure Payment Confirmation Network and Issuer Icons</b>.
+       <br><code>chrome://flags#enable-network-and-issuer-icons-for-secure-payment-confirmation</code>
+   <li>Optionally, enable <b>Secure Payment Confirmation Fallback UX</b> (Chrome 138).
+       <br><code>chrome://flags#enable-secure-payment-confirmation-fallback-ux</code>
+   <li>Optionally, enable <b>Secure Payment Confirmation Browser Bound Key</b> (Chrome 138).
+       <br><code>chrome://flags#enable-secure-payment-confirmation-browser-bound-key</code>
    <li>When done, delete payment credentials from <code>chrome://settings/passkeys</code>
-  </ol>
+  </ul>
 </div>
+
+<fieldset>
+  <legend>Authenticators</legend>
+  <div>
+    <input type="checkbox" id="uvpa_checkbox"/>
+    <label for="securityKey">allow security-keys (requires CTAP 2.2 thirdPartyPayment extension)</label>
+  </div>
+</fieldset>
 
 <div>
   <button class="button" id="create" onClick="create()">Create payment credential</button>
