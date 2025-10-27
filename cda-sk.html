@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>demo: hybrid flow using security key</title>
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
+
+var userID = new Uint8Array(16);
+
+var challenge = new Uint8Array(32);
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Demo User"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        authenticatorSelection: {
+          residentKey: "required",
+        },
+        hints: [],
+        excludeCredentials: [],
+        attestation: "none",
+        challenge: challenge.buffer
+    }
+};
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        //hints: ["hybrid"],
+        allowCredentials: [],
+    },
+};
+
+function createSecurityKey() {
+    createCredentialDefaultArgs.publicKey.hints = ["security-key"];
+    create();
+}
+
+function createHybrid() {
+    createCredentialDefaultArgs.publicKey.hints = ["hybrid"];
+    create();
+}
+
+function create() {
+    self.crypto.getRandomValues(challenge); // generate a random challenge
+    //self.crypto.getRandomValues(userID); // generate a random user ID
+    navigator.credentials.create(createCredentialDefaultArgs).then( (cred) => {
+        createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: cred.rawId, type: "public-key"} ); // prevent re-registration
+        if( cred.authenticatorAttachment == 'cross-platform' && cred.response.getTransports().includes('hybrid')) {
+            console.log("stored ${ cred.id } on Google Password Manager");
+        } else {
+            console.log("stored ${ cred.id } on security key");
+        }
+        // leave allowCredentials empty to allow passkeys stored on security keys using hybrid flow
+        // getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: cred.rawId, type: "public-key"} );
+        document.getElementById("message").innerHTML += `<br/>credential created: ${ btoh(new Uint8Array(cred.rawId)) }`;
+    }).catch((e) => {
+        document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
+    })
+}
+
+function get() {
+    self.crypto.getRandomValues(challenge);
+    console.log(getCredentialDefaultArgs)
+    navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => {
+        document.getElementById("message").innerHTML += `<br/>Obtained an assertion for credential ID ${ btoh(new Uint8Array(assertion.rawId)) }`;
+        // ... verify signature etc
+    }).catch((e) => {
+        document.getElementById("message").innerHTML += `<br/><b>Authentication failed</b>: ${ e.message }`;
+    })
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+</script>
+
+Open this page in Chrome on Windows/macOS/linux.
+Then:
+
+<p>Click <button id="create" onClick="createSecurityKey()">create (security-key)</button> to create a passkey and store it on a security key
+<p>Click <button id="create" onClick="createHybrid()">create (hybrid)</button> to create another passkey. This time:
+    <ul>
+    <li>Scan the QR code with your Android device
+    <li>Store the passkey in Google Password Manager
+    </ul>
+<p>Click <button id="get"    onClick="get()">get</button> to obtain an assertion:
+    <ul>
+    <li>Select "Use a phone or tablet" when asked to use a saved passkey
+    <li>Scan the QR code using the camera on your Android device. Tap "Use passkey"
+    <li>Tap "More options" when prompted by Google Password Manager to use your saved passkey.
+    <li>Tap "Use a different device" for the Sign-in options.
+    <li>Tap "USB security key" (in case your security key is not inserted yet)
+    <li>Insert your USB security key and confirm with PIN.
+    <li>Touch your security key.
+    </ul>
+
+<hr/>
+
+<div id="message" class="info"> </div>
+
+</body>
+</html>
