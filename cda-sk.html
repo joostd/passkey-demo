@@ -64,14 +64,10 @@ function create() {
     //self.crypto.getRandomValues(userID); // generate a random user ID
     navigator.credentials.create(createCredentialDefaultArgs).then( (cred) => {
         createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: cred.rawId, type: "public-key"} ); // prevent re-registration
-        if( cred.authenticatorAttachment == 'cross-platform' && cred.response.getTransports().includes('hybrid')) {
-            console.log("stored ${ cred.id } on Google Password Manager");
-        } else {
-            console.log("stored ${ cred.id } on security key");
-        }
         // leave allowCredentials empty to allow passkeys stored on security keys using hybrid flow
         // getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: cred.rawId, type: "public-key"} );
-        document.getElementById("message").innerHTML += `<br/>credential created: ${ btoh(new Uint8Array(cred.rawId)) }`;
+        console.log(cred);
+        document.getElementById("message").innerHTML += `<br/>credential created: ${ btoh(new Uint8Array(cred.rawId)) } [${cred.authenticatorAttachment}, ${cred.response.getTransports()}]`;
     }).catch((e) => {
         document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
     })
@@ -94,22 +90,25 @@ function btoh(bytes /* Uint8Array */) {
 
 </script>
 
+<p>
+A simple demo to demonstrate how to use hybrid transport (<em>FIDO Cross-Device Authentication</em>) to sign-in using a passkey stored on a security key.
+<p>
 Open this page in Chrome on Windows/macOS/linux.
 Then:
 
 <p>Click <button id="create" onClick="createSecurityKey()">create (security-key)</button> to create a passkey and store it on a security key
 <p>Click <button id="create" onClick="createHybrid()">create (hybrid)</button> to create another passkey. This time:
     <ul>
-    <li>Scan the QR code with your Android device
-    <li>Store the passkey in Google Password Manager
+    <li>Scan the QR code using the camera on your Android device. Tap "Use passkey".
+    <li>Use a biometric or PIN to store the passkey in Google Password Manager.
     </ul>
 <p>Click <button id="get"    onClick="get()">get</button> to obtain an assertion:
     <ul>
-    <li>Select "Use a phone or tablet" when asked to use a saved passkey
-    <li>Scan the QR code using the camera on your Android device. Tap "Use passkey"
+    <li>Select "Use a phone or tablet" when asked to use a saved passkey.
+    <li>Scan the QR code using the camera on your Android device. Tap "Use passkey".
     <li>Tap "More options" when prompted by Google Password Manager to use your saved passkey.
     <li>Tap "Use a different device" for the Sign-in options.
-    <li>Tap "USB security key" (in case your security key is not inserted yet)
+    <li>Tap "USB security key" (in case your security key is not inserted yet).
     <li>Insert your USB security key and confirm with PIN.
     <li>Touch your security key.
     </ul>
