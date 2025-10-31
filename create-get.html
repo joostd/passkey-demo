@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>passkey demo</title>
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
+
+var pubkey = null;
+
+var userID = new Uint8Array(16);
+
+var challenge = new Uint8Array(32);
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Demo User"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        excludeCredentials: [],
+        attestation: "none",
+        challenge: challenge.buffer
+    }
+};
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        allowCredentials: [],
+    },
+};
+
+async function create() {
+    cred = await navigator.credentials.create(createCredentialDefaultArgs)
+    console.log(createCredentialDefaultArgs);
+    console.log(cred);
+    createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: cred.rawId, type: "public-key"} ); // prevent re-registration
+    getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: cred.rawId, type: "public-key"} );
+    pubkey = await crypto.subtle.importKey( "spki", cred.response.getPublicKey(), algo, false, ["verify"] );
+    console.log(`public key: ${ btoh(new Uint8Array(cred.response.getPublicKey())) }`)
+    document.getElementById("message").innerHTML += `<br/>credential created: ${ btoh(new Uint8Array(cred.rawId)) } [${cred.authenticatorAttachment}, ${cred.response.getTransports()}]`;
+}
+
+async function get() {
+    var assertion = await navigator.credentials.get(getCredentialDefaultArgs)
+    console.log(getCredentialDefaultArgs)
+    console.log(assertion);
+    document.getElementById("message").innerHTML += `<br/>Obtained an assertion for credential ID ${ btoh(new Uint8Array(assertion.rawId)) }`;
+    var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
+    var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", assertion.response.clientDataJSON));
+    var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
+    console.log(`public key: ${ btoh(new Uint8Array(cred.response.getPublicKey())) }`)
+    console.log(`ASN.1 signature: ${ btoh(new Uint8Array(assertion.response.signature)) }`)
+    rawSignature = unwrap(assertion.response.signature); // unwrap ASN.1 signature to "raw" format (r,s)
+    var verified = await crypto.subtle.verify(algo,pubkey,rawSignature,signedData.buffer);
+    console.log(`authenticatorData: ${ btoh(authenticatorData) }`)
+    console.log(`clientDataHash: ${ btoh(clientDataHash) }`)
+    console.log(`signedData: ${ btoh(signedData) }`)
+    console.log('%cverified',"color: green",verified);
+}
+
+// unwrap ASN.1 signature
+function unwrap(signature) {
+    var usignature = new Uint8Array(signature);
+    var rStart = usignature[4] === 0 ? 5 : 4;
+    var rEnd = rStart + 32;
+    var sStart = usignature[rEnd + 2] === 0 ? rEnd + 3 : rEnd + 2;
+    var r = usignature.slice(rStart, rEnd);
+    var s = usignature.slice(sStart);
+    var rawSignature = new Uint8Array([...r, ...s]);
+    return rawSignature;
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+</script>
+
+<button id="create" onClick="create()">create</button>
+<button id="get"    onClick="get()">get</button>
+
+<hr/>
+
+<div id="message" class="info"> </div>
+
+</body>
+</html>
