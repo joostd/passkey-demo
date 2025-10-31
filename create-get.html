@@ -65,11 +65,11 @@ async function get() {
     var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
     var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", assertion.response.clientDataJSON));
     var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
-    console.log(`public key: ${ btoh(new Uint8Array(cred.response.getPublicKey())) }`)
     console.log(`ASN.1 signature: ${ btoh(new Uint8Array(assertion.response.signature)) }`)
     rawSignature = unwrap(assertion.response.signature); // unwrap ASN.1 signature to "raw" format (r,s)
     var verified = await crypto.subtle.verify(algo,pubkey,rawSignature,signedData.buffer);
     console.log(`authenticatorData: ${ btoh(authenticatorData) }`)
+    console.log(`clientDataJSON: ${ new TextDecoder().decode(assertion.response.clientDataJSON) }`)
     console.log(`clientDataHash: ${ btoh(clientDataHash) }`)
     console.log(`signedData: ${ btoh(signedData) }`)
     console.log('%cverified',"color: green",verified);
