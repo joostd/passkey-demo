@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<script src="cbor.js"></script>
+<script src="https://unpkg.com/@peculiar/x509"></script>
+<script>
+
+const ES256 = -7;   // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const user = { id: new Uint8Array(16), name: "deleteme", displayName: "Delete Me" };
+const challenge = new Uint8Array(32);
+
+function hex(ab /* ArrayBuffer */) {
+  return [...new Uint8Array(ab)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getAttestation(cert) {
+    for(i in cert.extensions) {
+        e = cert.extensions[i]
+        if( e.type === '1.3.6.1.4.1.11129.2.1.17' ) {
+            return e.value;
+        }
+    }
+    return null;
+}
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+        rp: {
+            name: "android-key test"
+        },
+        user: user,
+        pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
+        authenticatorSelection: {
+            residentKey: "discouraged",
+            requireResidentKey: false,
+        },
+        attestation: "direct",
+    }
+};
+
+async function create() {
+    createCredentialDefaultArgs.publicKey.user = user;
+    var cred = await navigator.credentials.create(createCredentialDefaultArgs)
+console.log(cred);
+
+    let aaguid = null;
+    if('getAuthenticatorData' in cred.response) {
+        authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+        aaguid = authenticatorData.slice(37,53); // 16 bytes
+    }
+    document.getElementById("message").innerHTML += `<hr/>AAGUID: <code>${ aaguid ? btoh(new Uint8Array(aaguid)) : "?" }</code>`;
+    document.getElementById("message").innerHTML += `<br/>userAgent: <code>${ navigator.userAgent }</code>`;
+
+    console.assert(cred.type == 'public-key');
+    attestation = cbor_decode(cred.response.attestationObject);
+console.log(attestation);
+    document.getElementById("message").innerHTML += `<br/>Attestation Format: <code>${ attestation.fmt }</code>`;
+    if( attestation.fmt == 'android-key') {
+        const cert = new x509.X509Certificate(attestation.attStmt.x5c[0]); // skipping CA chain validation
+        attestation = getAttestation(cert);
+        document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ hex(attestation) }</code>`;
+    }
+}
+
+</script>
+
+<h1>Android Key Attestation Tester</h1>
+
+<div >
+This page lets you register a FIDO credential using your Android device, and validate the resulting <code>android-key</code> attestation.
+  <ol>
+   <li>Open this page on your Android device.</li>
+   <li>Click "Register".</li>
+   <li>Choose "This device" when asked where to save your FIDO credential.</li>
+   <li>Unlock your device to finish registration.</li>
+  </ol>
+</div>
+
+<button class="button" id="create" onClick="create()">Register</button>
+
+<div id="message" class="info">
+</div>
+
+</body>
+</html>
