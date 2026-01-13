@@ -9,11 +9,17 @@
   padding: 15px 15px;
   margin: 4px 2px;
 }
+.attestation {
+  background-color: lightgrey;
+}
 </style>
 </head>
 <body>
 
 <script src="cbor.js"></script>
+<script src="status.js"></script>
+<script src="roots.js"></script>
+<script src="keydescription.js"></script>
 <script src="https://unpkg.com/@peculiar/x509"></script>
 <script>
 
@@ -30,6 +36,96 @@ function hex(ab /* ArrayBuffer */) {
 function btoh(bytes /* Uint8Array */) {
   return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
 }
+
+function pp(obj, level=0, skipindent=false) {
+  const indent = "  ".repeat(level);
+  switch (typeof(obj)) {
+    case 'boolean':
+    case 'number':
+    case 'string':
+      return `${ skipindent ? '' : indent }${obj}`;
+      break;
+    case 'object':
+      let result = '';
+      const keys = Object.keys(obj);
+      for(n in keys) {
+        const key = keys[n];
+        const value = obj[key];
+        result += skipindent && n==0 ? '' : indent;
+        result += Array.isArray(obj) ? "-" : `${key}:`;
+        if( typeof(value) == 'object' )
+          if( Array.isArray(obj) )
+            result += " " + pp(value, level+1, true);
+          else
+            result += "\n" + pp(value, level+1);
+        else
+          result += " " + value;
+        if( result.slice(-1) != '\n' ) result += '\n';
+      }
+      return result;
+      break;
+    default:
+      console.error(`ERROR ${typeof(obj)}`);
+  }
+}
+
+function pretty(object) {
+  let lines = []
+  dump(object)
+  return lines.join("")
+
+  function dump(object, level = 0) {
+    switch( typeof object ) {
+      case "string":
+        lines.push(`<li>"${object}"`)
+        return
+      case "boolean":
+      case "number":
+        lines.push(`<li>${object}`)
+        return
+    case "object":
+        const keys = Object.keys(object)
+        if( Array.isArray(object) )
+        // dump array values only
+        {
+          lines.push(`<ol>`)
+          for( let i in keys ) {
+            const index = keys[i]
+            const value = object[index]
+            dump(value, level)
+          }
+          lines.push(`</ol>`)
+        }
+        else
+        // dump key-value pairs
+        {
+          for( let i in keys ) {
+            const key = keys[i]
+            const value = object[key]
+            lines.push(`<b>${key}</b>:<ul>`)
+            dump(value, level+1)
+            lines.push(`</ul>`)
+          }
+        }
+        return
+      default:
+        lines.push(`<li>${object} : ?`)
+    }
+  }
+}
+
+// forbidden due to CORS policy :-(
+async function loadCRL() {
+  console.log(`downloading CRL`);
+  const response = await fetch("https://android.googleapis.com/attestation/status", { mode: "cors" } );
+  const body = await response.text();
+  const decoded = base64URLdecode(body);
+  crl = JSON.parse(decoded).entries;
+  console.log(`loaded ${crl.length} entries`);
+}
+
+let crl = revocationList.entries
+
 
 function getAttestation(cert) {
     for(i in cert.extensions) {
@@ -49,10 +145,8 @@ var createCredentialDefaultArgs = {
         },
         user: user,
         pubKeyCredParams: [ { type: "public-key", alg: ES256 }, { type: "public-key", alg: RS256 }, ],
-        authenticatorSelection: {
-            residentKey: "discouraged",
-            requireResidentKey: false,
-        },
+	// residentKey defaults to "discouraged" unless requireResidentKey is true
+        //authenticatorSelection: { residentKey: "discouraged", requireResidentKey: false, },
         attestation: "direct",
     }
 };
@@ -67,25 +161,76 @@ console.log(cred);
         authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
         aaguid = authenticatorData.slice(37,53); // 16 bytes
     }
-    document.getElementById("message").innerHTML += `<hr/>AAGUID: <code>${ aaguid ? btoh(new Uint8Array(aaguid)) : "?" }</code>`;
-    document.getElementById("message").innerHTML += `<br/>userAgent: <code>${ navigator.userAgent }</code>`;
+    document.getElementById("message").innerHTML += `<br/>AAGUID: <code>${ aaguid ? btoh(new Uint8Array(aaguid)) : "?" }</code>`;
 
     console.assert(cred.type == 'public-key');
     attestation = cbor_decode(cred.response.attestationObject);
-console.log(attestation);
     document.getElementById("message").innerHTML += `<br/>Attestation Format: <code>${ attestation.fmt }</code>`;
     if( attestation.fmt == 'android-key') {
-        const cert = new x509.X509Certificate(attestation.attStmt.x5c[0]); // skipping CA chain validation
-        attestation = getAttestation(cert);
-        document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ hex(attestation) }</code>`;
+	const certificates = attestation.attStmt.x5c.map(c => new x509.X509Certificate(c))
+        const attestationCert = certificates.shift() // extract leaf certificate
+
+	// CA chain path validation:
+	const chain = new x509.X509ChainBuilder({ certificates, });
+	const path = await chain.build(attestationCert);
+	// check for trusted root
+	const trustedRoots = roots.map(c => new x509.X509Certificate(c))
+	const rootKeys = trustedRoots.map(c => c.asn.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey)
+	const topCert = certificates[certificates.length-1]
+	const topKey = topCert.asn.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey
+	let trusted = null
+	for (key of rootKeys) {
+	    if (key.length === topKey.length && key.every((value, index) => value === topKey[index]) )
+		trusted = key
+	}
+	// Check for revocation
+	for (c of certificates) {
+	  if( c.serialNumber in crl )
+	    console.warn(crl[test])
+	}
+	const serials = path.map(c => c.serialNumber)
+  	const unRevoked = serials.every(s => !(s in crl))
+	//if(!unRevoked) console.log(`REVOKED: ${s}, REASON ${crl[s]}`)
+        document.getElementById("message").innerHTML += `<h3>Attestation Certificate</h3>Certificate Trusted: ${ trusted != null }`;
+        document.getElementById("message").innerHTML += `<br/>Certificate Revoked: ${ !unRevoked }`;
+        document.getElementById("message").innerHTML += `<br/>Certificate Chain:<div>-${ path.map(c => c.subject).join("<br/>- ") }</div>`;
+	// Parse Android Key Attestation
+        androidAttestation = new Uint8Array(getAttestation(attestationCert))
+	asn1 = parseASN1(androidAttestation)
+	//console.log( JSON.stringify(asn1, null, 2) )
+	kd = keyDescription(asn1)
+	console.log(kd)
+        //document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ hex(androidAttestation) }</code>`;
+        //document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ JSON.stringify(kd, null, 2) }</code>`;
+        console.log(pp(kd))
+        document.getElementById("message").innerHTML += `<h3>Android Key Attestation</h3> <div class="attestation">${ pretty(kd) }</div>`;
+        document.getElementById("message").innerHTML += `<br/><a href="https://github.com/joostd/passkey-demo/issues/new?title=attestation&body=New+Android+Key+Attestation:+${ hex(androidAttestation) }">Submit attestation to GitHub</a>`;
     }
 }
 
+window.onload=function(){
+  if (!navigator.userAgent.includes('Android')) {
+    document.getElementById("message").innerHTML = `userAgent: <code>${ navigator.userAgent }</code>`;
+    document.getElementById("message").innerHTML += "<br/>Using this page requires an Android device.";
+  } else
+    return;
+  if (!['localhost','127.0.0.1'].includes(location.host.split(':')[0]) ) {
+    document.getElementById("message").innerHTML += "<hr/>Scan the QR code on your Android device:";
+    var img = document.createElement("img");
+    img.src = `https://genqrcode.com/embedded?text=${location}&width=150&height=150&bordersize=2`;
+    var div_elt = document.getElementById("image");
+    div_elt.appendChild(img);
+  }
+    
+}
 </script>
 
 <h1>Android Key Attestation Tester</h1>
 
-<div >
+<div id="image"/>
+
+<div id="message" class="info">
+
 This page lets you register a FIDO credential using your Android device, and validate the resulting <code>android-key</code> attestation.
   <ol>
    <li>Open this page on your Android device.</li>
@@ -93,11 +238,7 @@ This page lets you register a FIDO credential using your Android device, and val
    <li>Choose "This device" when asked where to save your FIDO credential.</li>
    <li>Unlock your device to finish registration.</li>
   </ol>
-</div>
-
 <button class="button" id="create" onClick="create()">Register</button>
-
-<div id="message" class="info">
 </div>
 
 </body>
