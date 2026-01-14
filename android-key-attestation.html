@@ -234,7 +234,7 @@ window.onload=function(){
   } else
     return;
   if (!['localhost','127.0.0.1'].includes(location.host.split(':')[0]) ) {
-    document.getElementById("message").innerHTML += "<hr/>Scan the QR code on your Android device:";
+    document.getElementById("message").innerHTML += `<hr/>Open <a href="${location.href}">${location.href}</a> on your Android device, or scan the QR code.`;
     var img = document.createElement("img");
     img.src = `https://genqrcode.com/embedded?text=${location}&width=150&height=150&bordersize=2`;
     var div_elt = document.getElementById("image");
