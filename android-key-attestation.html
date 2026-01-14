@@ -22,6 +22,17 @@
 <script src="keydescription.js"></script>
 <script src="https://unpkg.com/@peculiar/x509"></script>
 <script>
+// Simple client-side script to inspect Android Key Attestations
+// * Generate non-discoverable FIDO credential
+// * Parse the attestation certificate
+// * Validate the attestation certificate's CA path against known trust anchors
+// * Check the attestation certificate's revocation status
+// * Extract the Android Key Attestation from the attestation certificate
+// * Parse the key attestation according to its ASN.1 Schema
+// * Dump the attestation tags for inspection
+//
+// TODO: instead of parsing ASN.1 here, use
+// https://github.com/PeculiarVentures/asn1-schema/tree/master/packages/android
 
 const ES256 = -7;   // ECDSA w/ SHA-256
 const RS256 = -257; // RSA w/ SHA-256
@@ -115,6 +126,7 @@ function pretty(object) {
 }
 
 // forbidden due to CORS policy :-(
+// using a static status.js instead
 async function loadCRL() {
   console.log(`downloading CRL`);
   const response = await fetch("https://android.googleapis.com/attestation/status", { mode: "cors" } );
@@ -126,7 +138,7 @@ async function loadCRL() {
 
 let crl = revocationList.entries
 
-
+// Extract the android key attestation from an attestation certificate
 function getAttestation(cert) {
     for(i in cert.extensions) {
         e = cert.extensions[i]
@@ -151,10 +163,11 @@ var createCredentialDefaultArgs = {
     }
 };
 
+// Create a FIDO credential
 async function create() {
     createCredentialDefaultArgs.publicKey.user = user;
     var cred = await navigator.credentials.create(createCredentialDefaultArgs)
-console.log(cred);
+    console.log(cred);
 
     let aaguid = null;
     if('getAuthenticatorData' in cred.response) {
@@ -171,13 +184,15 @@ console.log(cred);
         const attestationCert = certificates.shift() // extract leaf certificate
 
 	// CA chain path validation:
+	// https://github.com/PeculiarVentures/x509/issues/24#issuecomment-1165500011
 	const chain = new x509.X509ChainBuilder({ certificates, });
 	const path = await chain.build(attestationCert);
 	// check for trusted root
 	const trustedRoots = roots.map(c => new x509.X509Certificate(c))
-	const rootKeys = trustedRoots.map(c => c.asn.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey)
 	const topCert = certificates[certificates.length-1]
+	// As root certificates get re-issued with the same public key, compare keys instead of certificates
 	const topKey = topCert.asn.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey
+	const rootKeys = trustedRoots.map(c => c.asn.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey)
 	let trusted = null
 	for (key of rootKeys) {
 	    if (key.length === topKey.length && key.every((value, index) => value === topKey[index]) )
@@ -189,22 +204,26 @@ console.log(cred);
 	    console.warn(crl[test])
 	}
 	const serials = path.map(c => c.serialNumber)
-  	const unRevoked = serials.every(s => !(s in crl))
-	//if(!unRevoked) console.log(`REVOKED: ${s}, REASON ${crl[s]}`)
-        document.getElementById("message").innerHTML += `<h3>Attestation Certificate</h3>Certificate Trusted: ${ trusted != null }`;
-        document.getElementById("message").innerHTML += `<br/>Certificate Revoked: ${ !unRevoked }`;
-        document.getElementById("message").innerHTML += `<br/>Certificate Chain:<div>-${ path.map(c => c.subject).join("<br/>- ") }</div>`;
+	const revokedSerials = serials.filter(s=>s in crl)
+  	const revoked = revokedSerials.length > 1
+        document.getElementById("message").innerHTML += `<h3>Attestation Certificate</h3><b>Certificate Trusted</b>: ${ trusted != null }`;
+        document.getElementById("message").innerHTML += `<br/><b>Certificate Revoked</b>: ${ revoked }`;
+	if(revoked) {
+	    console.log(`CRL match for serial: ${revokedSerials[0]}`)
+	    console.log(crl[revokedSerials[0]])
+	    if( crl[revokedSerials[0]]['status'] == 'REVOKED' )
+        	document.getElementById("message").innerHTML += `<br/><b>Revocation reason</b>: ${ crl[revokedSerials[0]]['reason'] }`;
+	}
+        document.getElementById("message").innerHTML += `<br/><b>Certificate Chain</b>:<div>- ${ path.map(c => c.subject).join("<br/>- ") }</div>`;
 	// Parse Android Key Attestation
         androidAttestation = new Uint8Array(getAttestation(attestationCert))
 	asn1 = parseASN1(androidAttestation)
-	//console.log( JSON.stringify(asn1, null, 2) )
 	kd = keyDescription(asn1)
-	console.log(kd)
-        //document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ hex(androidAttestation) }</code>`;
-        //document.getElementById("message").innerHTML += `<br/>Android Key Attestation: <code>${ JSON.stringify(kd, null, 2) }</code>`;
         console.log(pp(kd))
         document.getElementById("message").innerHTML += `<h3>Android Key Attestation</h3> <div class="attestation">${ pretty(kd) }</div>`;
         document.getElementById("message").innerHTML += `<br/><a href="https://github.com/joostd/passkey-demo/issues/new?title=attestation&body=New+Android+Key+Attestation:+${ hex(androidAttestation) }">Submit attestation to GitHub</a>`;
+    } else {
+        document.getElementById("message").innerHTML = `<h3>Error</h3> <div class="attestation">Unexpected attestation format: <code>${ attestation.fmt }</code>.<br/>Did you select "This Device" on an Android device?</div>`;
     }
 }
 
