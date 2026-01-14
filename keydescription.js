@@ -98,6 +98,12 @@ function parseASN1(data) {
 // KeyDescription
 // https://source.android.com/docs/security/features/keystore/attestation#attestation-v400
 
+function nul(t) {
+    console.assert(t.type == 'NULL', `NUL expected instead of ${t.type}`)
+    console.assert(t.value == '', `NUL value expected instead of ${t.value}`)
+    return null
+}
+
 function integer(t) {
     console.assert(t.type == 'INTEGER', `INTEGER expected instead of ${t.type}`)
     return t.value
@@ -185,6 +191,8 @@ function rootOfTrust(seq) {
     let deviceLocked = seq.value[1].value
     console.assert(seq.value[2].type == 'ENUMERATED', `ENUMERATED expected instead of ${seq.value[2].type}`)
     let verifiedBootState = enumVerifiedBootState[seq.value[2].value]
+    if( seq.value.length <4 ) // pre-v3
+        return { verifiedBootKey, deviceLocked, verifiedBootState }
     console.assert(seq.value[3].type == 'OCTET STRING', `OCTET STRING expected instead of ${seq.value[3].type}`)
     let verifiedBootHash = seq.value[3].value
     return { verifiedBootKey, deviceLocked, verifiedBootState, verifiedBootHash }

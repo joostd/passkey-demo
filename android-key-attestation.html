@@ -57,6 +57,8 @@ function pp(obj, level=0, skipindent=false) {
       return `${ skipindent ? '' : indent }${obj}`;
       break;
     case 'object':
+      if (obj === null)
+        return `${ skipindent ? '' : indent }${obj}`;
       let result = '';
       const keys = Object.keys(obj);
       for(n in keys) {
@@ -95,6 +97,10 @@ function pretty(object) {
         lines.push(`<li>${object}`)
         return
     case "object":
+        if (object === null) {
+	  lines.push(`<li>${object}`)
+	  return
+	}
         const keys = Object.keys(object)
         if( Array.isArray(object) )
         // dump array values only
