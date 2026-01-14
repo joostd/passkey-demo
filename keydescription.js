@@ -1,3 +1,12 @@
+function hex2string(hexString) {
+    return (hexString.match(/.{1,2}/g).map(byte => String.fromCharCode(parseInt(byte, 16)))).join("")
+}
+
+function hex2bytes(hexString) {
+    return Uint8Array.from(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+}
+
+// parse DER-encoded ASN.1 byte array
 function parseASN1(data) {
     let offset = 0;
 
@@ -125,6 +134,28 @@ function authenticatorType(t) { // bitmap
   if( t&1) type.push("password")
   if( t&2) type.push("fingerprint")
   return type
+}
+
+
+function attestationApplicationId(seq) {
+    console.assert(seq.type == 'SEQUENCE', `attestationApplicationId SEQUENCE expected instead of ${seq.type}`)
+    console.assert(seq.value.length == 2, `attestationApplicationId SEQUENCE of length 2 expected instead of length ${seq.value.length}`)
+    let set = seq.value[0]
+    console.assert(set.type == 'SET', `SET expected instead of ${set.type}`)
+    let package_infos = set.value.map(pi => package_info(pi))
+    console.assert(seq.value[1].type == 'SET')
+    let signature_digests = seq.value[1].value.map(s => octetstring(s))
+    return { package_infos, signature_digests }
+}
+
+function package_info(seq) {
+    console.assert(seq.type == 'SEQUENCE', `SEQUENCE expected instead of ${seq.type}`)
+    console.assert(seq.value.length == 2)
+    console.assert(seq.value[0].type == 'OCTET STRING')
+    let package_name = hex2string(seq.value[0].value)
+    console.assert(seq.value[1].type == 'INTEGER')
+    let version = integer(seq.value[1])
+    return { package_name, version }
 }
 
 function keyDescription(seq) {
@@ -263,7 +294,10 @@ function authorizationList(seq) {
 		list['osPatchLevel'] = integer(t.value[0])
                 break
             case 709:
-		list['attestationApplicationId'] = octetstring(t.value[0])
+		// note that this octet string is ASN.1 encoded
+		const os = octetstring(t.value[0])
+		const asn = parseASN1(hex2bytes(os))
+		list['attestationApplicationId'] = attestationApplicationId(asn)
                 break
             case 710:
 		list['attestationIdBrand'] = octetstring(t.value[0])
@@ -310,12 +344,3 @@ function authorizationList(seq) {
     }
     return list
 }
-
-const hexInput = "3082017e020201900a0101020201900a01010420f743761d0ac737388077e0f8d3a48150a3585f4d2e5cfe17ac2f23b2cb187bb0040030819dbf853d080206019b98061b2abf85456704653063313d301b0416636f6d2e676f6f676c652e616e64726f69642e677366020124301e0416636f6d2e676f6f676c652e616e64726f69642e676d7302040f31f44331220420f0fd6c5b410f25cb25c3b53346c8972fae30f8ee7411df910480ad6b2d60db83bf85542204203b2bfb758e1087d2fb8cf348aa21cf152f62adcc0689b822c7f2ae5780cf6c873081a9a1053103020102a203020103a30402020100a5053103020104aa03020101bf837803020103bf83790302010abf853e03020100bf85404c304a04209ac4174153d45e4545b0f49e22fe63273999b6ac1cb6949c3a9f03ec8807eee90101ff0a01000420d69902e18d96caf8d690638cfc5f9a7991d5e45c96dadb54c25e21dd74f39c0fbf8541050203027100bf8542050203031710bf854e06020401350245bf854f06020401350245";
-
-const input = Uint8Array.from(hexInput.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-a = parseASN1(input)
-//console.log(a);
-kd = keyDescription(a)
-console.log(kd);
-
