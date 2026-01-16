@@ -227,6 +227,7 @@ async function create() {
 	kd = keyDescription(asn1)
         console.log(pp(kd))
         document.getElementById("message").innerHTML += `<h3>Android Key Attestation</h3> <div class="attestation">${ pretty(kd) }</div>`;
+        document.getElementById("message").innerHTML += `<br/>See <a href="https://source.android.com/docs/security/features/keystore/attestation#keydescription-fields">here</a> for a description of the fields`;
         document.getElementById("message").innerHTML += `<br/><a href="https://github.com/joostd/passkey-demo/issues/new?title=attestation&body=New+Android+Key+Attestation:+${ hex(androidAttestation) }">Submit attestation to GitHub</a>`;
     } else {
         document.getElementById("message").innerHTML = `<h3>Error</h3> <div class="attestation">Unexpected attestation format: <code>${ attestation.fmt }</code>.<br/>Did you select "This Device" on an Android device?</div>`;
