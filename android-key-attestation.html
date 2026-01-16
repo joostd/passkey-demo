@@ -226,7 +226,7 @@ async function create() {
 	asn1 = parseASN1(androidAttestation)
 	kd = keyDescription(asn1)
         console.log(pp(kd))
-        document.getElementById("message").innerHTML += `<h3>Android Key Attestation</h3>See <a href="https://source.android.com/docs/security/features/keystore/attestation#keydescription-fields">here</a> for a description of the fields`;
+        document.getElementById("message").innerHTML += `<h3>Android Key Attestation</h3><p>See <a href="https://source.android.com/docs/security/features/keystore/attestation#keydescription-fields">here</a> for a description of the fields.</p>`;
         document.getElementById("message").innerHTML += `<div class="attestation">${ pretty(kd) }</div>`;
         document.getElementById("message").innerHTML += `<br/><a href="https://github.com/joostd/passkey-demo/issues/new?title=attestation&body=New+Android+Key+Attestation:+${ hex(androidAttestation) }">Submit attestation to GitHub</a>`;
     } else {
