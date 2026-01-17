@@ -1,4 +1,4 @@
-let revocationList = {
+{
   "entries": {
     "6681152659205225093" : {
       "status": "REVOKED",
