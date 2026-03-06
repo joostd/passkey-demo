@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRF demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body onLoad="didLoad()">
+
+<script>
+
+let challenge = new Uint8Array(32);
+let salt = new Uint8Array(32);
+let credid = new Uint8Array(64);
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+    },
+};
+
+async function get() {
+    self.crypto.getRandomValues(challenge);
+
+    credid = Uint8Array.fromHex(document.getElementById("credid").value);
+    console.log(credid);
+    getCredentialDefaultArgs.publicKey.allowCredentials = [ { id: credid, type: "public-key" } ];
+
+    salt = Uint8Array.fromHex(document.getElementById("salt").value);
+    console.log(salt);
+    getCredentialDefaultArgs.publicKey.extensions = { prf: { eval: { first: salt.buffer } } };
+
+    expected = document.getElementById("prf").value;
+    console.log(getCredentialDefaultArgs)
+    var assertion = await navigator.credentials.get(getCredentialDefaultArgs);
+    console.log("%cASSERTION", "color: red", getCredentialDefaultArgs, assertion);
+
+    const extensions = assertion.getClientExtensionResults();
+    console.log(extensions);
+    if( extensions.prf.results ) {
+        var prf = new Uint8Array(extensions.prf.results.first);
+        console.log(`prf: ${ btoh(prf) }`);
+        document.getElementById("message").innerHTML += `<br/>PRF output: <code>${ btoh(prf) }</code>`;
+        document.getElementById("message").innerHTML += `<br/>PRF correct: ${ btoh(prf) == expected}`;
+    } else {
+        document.getElementById("message").innerHTML += `<br/>PRF not supported`;
+    }
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function didLoad() {
+    document.getElementById("message").innerHTML += `<br/>You are using: <code>${ navigator.appVersion }</code> (navigator.appVersion)`;
+
+    if (PublicKeyCredential.getClientCapabilities) { // check for getClientCapabilities
+      PublicKeyCredential.getClientCapabilities()
+        .then((caps) => {
+            document.getElementById("message").innerHTML += `<br/>PRF extension ${ caps['extension:prf'] ? 'is' : 'is not'} supported`;
+        }).catch(console.error);
+    }
+
+    var url = new URL(document.location.href);
+    var saltParam = url.searchParams.get("salt");
+    console.log(`salt=${ saltParam }`);
+    document.getElementById("salt").value = saltParam;
+
+    var credidParam = url.searchParams.get("credid");
+    console.log(`credid=${ credidParam }`);
+    document.getElementById("credid").value = credidParam;
+
+    var prf = url.searchParams.get("prf");
+    console.log(`prf=${ prf }`);
+    document.getElementById("prf").value = prf;
+}
+
+
+</script>
+
+<h3>PRF test</h3>
+<p>Test PRF output for a specific credential ID and input salt.
+<hr>
+<button class="button" id="button" onClick="get()">check PRF value</button>
+<br/>
+<label for="credid">Credential ID (hex):</label>
+<br/>
+<input id="credid" size="136"/>
+<br/>
+<label for="salt">Salt (hex):</label>
+<br/>
+<input type="text" id="salt" size="70"/>
+<br/>
+<label for="prf">expected PRF (hex):</label>
+<br/>
+<input type="text" id="prf" size="70"/>
+
+<div id="message" class="info">
+Instructions:
+<ul>
+   <li>Use accompanying <a href="check-prf.sh">shell script</a> to generate a credential</li>
+   <li>Enter credential ID, salt, and prf (optional) values</li>
+   <li>Click or tap "PRF" button</li>
+   <li>Enable javascript console to view log messages</li> 
+</ul>
+
+</div>
+   
+</body>
+</html>
