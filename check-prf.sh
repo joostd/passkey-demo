@@ -1,6 +1,13 @@
 #!/bin/bash
 
 HID="$(fido2-token -L | head -1 | cut -d: -f1-2)"
+if [[ -z "$HID" ]]
+then
+    echo Please insert a FIDO security key
+    exit
+fi
+
+fido2-token -I $HID | grep ^extension | grep -oq hmac-secret || { echo security key requires hmac-secret extension; exit ; }
 
 RPID=passkey.joostd.nl
 
@@ -30,7 +37,6 @@ echo $RPID >> assert.in
 # credential ID:
 head -1 cred >> assert.in
 (echo -en "WebAuthn PRF\0"; cat salt)| openssl sha256 -binary | base64 >> assert.in
-#cat salt | base64 >> assert.in
 
 echo "# get assertion"
 fido2-assert -G -h -t pin=true -i assert.in $HID | tee assert.out | fido2-assert -V -h <(tail -n +2 cred) es256
@@ -42,6 +48,5 @@ tail -1 assert.out | base64 -d | xxd -p -c0
 rm assert.in
 
 echo
-#echo open "'http://localhost:8080/check-prf.html?credid=$(head -1 cred | base64 -d | xxd -p -c0)&salt=$(xxd -p -c0 ./salt)&prf=$(tail -1 assert.out | base64 -d | xxd -p -c0)'"
 echo open "'https://$RPID/check-prf.html?credid=$(head -1 cred | base64 -d | xxd -p -c0)&salt=$(xxd -p -c0 ./salt)&prf=$(tail -1 assert.out | base64 -d | xxd -p -c0)'"
 rm assert.out

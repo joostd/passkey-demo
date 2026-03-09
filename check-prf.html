@@ -40,8 +40,8 @@ async function get() {
     if( extensions.prf.results ) {
         var prf = new Uint8Array(extensions.prf.results.first);
         console.log(`prf: ${ btoh(prf) }`);
-        document.getElementById("message").innerHTML += `<br/>PRF output: <code>${ btoh(prf) }</code>`;
-        document.getElementById("message").innerHTML += `<br/>PRF correct: ${ btoh(prf) == expected}`;
+        document.getElementById("message").innerHTML += `<br/>PRF output: <code>${ btoh(prf) }</code>&nbsp;`;
+        document.getElementById("message").innerHTML += btoh(prf) == expected ? '&#9989' : '&#10060' ;
     } else {
         document.getElementById("message").innerHTML += `<br/>PRF not supported`;
     }
