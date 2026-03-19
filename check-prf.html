@@ -57,7 +57,8 @@ function didLoad() {
     if (PublicKeyCredential.getClientCapabilities) { // check for getClientCapabilities
       PublicKeyCredential.getClientCapabilities()
         .then((caps) => {
-            document.getElementById("message").innerHTML += `<br/>PRF extension ${ caps['extension:prf'] ? 'is' : 'is not'} supported`;
+            if('extension:prf' in caps)
+                document.getElementById("message").innerHTML += `<br/>PRF extension is supported`;
         }).catch(console.error);
     }
 
