@@ -26,6 +26,11 @@ var createOptions = {
             type: "public-key",
             alg: ES256
         }],
+        authenticatorSelection: {
+          //requireResidentKey: true,
+          residentKey: "required",
+          //authenticatorAttachment: "platform",
+        },
     	extensions: { 
             prf: {
                 eval: {
