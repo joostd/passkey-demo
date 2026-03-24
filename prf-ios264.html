@@ -56,7 +56,7 @@ async function create() {
     const extensions = cred.getClientExtensionResults();
     console.assert( extensions.prf.enabled );
     var prf = new Uint8Array(extensions.prf.results.first);
-    message = `PRF output: ${ colorhex(prf) }`;
+    message = `credential ID: ${ colorhex(cred.rawId) }, PRF output: ${ colorhex(prf) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
 }
 
@@ -64,7 +64,7 @@ async function get() {
     var assertion = await navigator.credentials.get(getOptions);
     const extensions = assertion.getClientExtensionResults();
     var prf = new Uint8Array(extensions.prf.results.first);
-    message = `PRF output: ${ colorhex(prf) }`;
+    message = `credential ID: ${ colorhex(assertion.rawId) }, PRF output: ${ colorhex(prf) }`;
     document.getElementById("message").innerHTML += '<br/>' + message;
 
 }
