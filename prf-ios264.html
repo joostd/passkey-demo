@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRF demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<script>
+const ES256 = -7; // ECDSA w/ SHA-256
+const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
+
+const challenge = new Uint8Array(32);
+// salt is arbitrary constant (00..) to make PRF output deterministic across browsers
+const salt = new Uint8Array(32);
+
+var createOptions = {
+    publicKey: {
+        challenge: challenge.buffer,
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: { id: new Uint8Array(16), name: "deleteMe", displayName: "Delete Me" },
+        pubKeyCredParams: [{
+            type: "public-key",
+            alg: ES256
+        }],
+    	extensions: { 
+            prf: {
+                eval: {
+                    first: salt.buffer,
+                } 
+            }
+        },
+    }
+};
+
+var getOptions = {
+    publicKey: {
+        challenge: challenge.buffer,
+        extensions: { 
+            prf: {
+                eval: {
+                    first: salt.buffer,
+                } 
+            }
+        },
+    },
+};
+
+async function create() {
+    await self.crypto.getRandomValues(createOptions.publicKey.user.id);
+    createOptions.publicKey.user.name = "Created by " + navigator.vendor;
+    var cred = await navigator.credentials.create(createOptions)
+    const extensions = cred.getClientExtensionResults();
+    console.assert( extensions.prf.enabled );
+    var prf = new Uint8Array(extensions.prf.results.first);
+    message = `PRF output: ${ colorhex(prf) }`;
+    document.getElementById("message").innerHTML += '<br/>' + message;
+}
+
+async function get() {
+    var assertion = await navigator.credentials.get(getOptions);
+    const extensions = assertion.getClientExtensionResults();
+    var prf = new Uint8Array(extensions.prf.results.first);
+    message = `PRF output: ${ colorhex(prf) }`;
+    document.getElementById("message").innerHTML += '<br/>' + message;
+
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function hex(ab) { // ArrayBuffer ab
+  return btoh(new Uint8Array(ab))
+}
+
+function colorhex(val) {
+  let h = hex(val);
+  return `<span style="color:#${ h.substring(0,6) }">${ h }</span>`;
+}
+</script>
+
+<h3>iOS 26.4 RC PRF test</h3>
+<p>Test the WebAuthn PRF extension.
+<hr>
+<button class="button" id="createbutton" onClick="create()">CREATE</button>
+<button class="button" id="getbutton" onClick="get()">GET</button>
+<br/>
+
+<div id="message" class="info">
+Instructions:
+<ul>
+   <li>CREATE a passkey</li> 
+   <li>If no PRF output appears, GET an assertion</li> 
+   <li>Observe the PRF output</li> 
+   <li>Change browsers and GET an assertion</li> 
+   <li>Observe the PRF output, and check it matches the previous one</li> 
+   <li>Reload to start over...</li>
+</ul>
+
+</div>
+   
+</body>
+</html>
