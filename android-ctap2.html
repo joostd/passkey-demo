@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disable hybrid flows</title>
+   <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+var challenge = new Uint8Array(32); // don't care, as we're not verifying anything here
+var userID = new Uint8Array(16);
+self.crypto.getRandomValues(userID); // generate new userID on reload
+
+var createOptions = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Dummy User"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        hints: [ "security-key" ],
+        authenticatorSelection: {
+        },
+        excludeCredentials: [],
+        challenge: challenge.buffer
+    }
+};
+
+var getOptions = {
+    publicKey: {
+        challenge: challenge.buffer,
+        allowCredentials: [],
+        hints: [ "security-key" ],
+    },
+};
+
+async function create() {
+    console.log(createOptions)
+    try {
+        // userVerification
+        userVerification = document.getElementById("userVerification").value
+        console.log("Selected userVerification: ", userVerification);
+        if( userVerification !== 'default')
+            createOptions.publicKey.authenticatorSelection.userVerification = userVerification;
+        else
+          delete(createOptions.publicKey.userVerification)
+	cred = await navigator.credentials.create(createOptions);
+	console.log( cred.toJSON ? cred.toJSON() : cred );
+        transports = cred.response.getTransports();
+        authenticatorData = cred.response.getAuthenticatorData(); // does CBOR decoding for us
+        flags = new Uint8Array(authenticatorData.slice(32,33)); // 1 uint8
+	uv = (flags[0]&0x04) > 0;
+        entry = {
+		id: cred.rawId,
+		type: "public-key",
+	};
+        getOptions.publicKey.allowCredentials.push(entry); // filter for credentials.get
+        createOptions.publicKey.excludeCredentials.push(entry); // prevent re-registration
+
+	message = `credential created: ${ credid(cred.rawId) }`;
+        if(transports.length > 0) message += ` [${transports.join("+")}]`;
+	message += `[${ uv ? "UV" : "noUV" }]`;
+
+    } catch(e) {
+        message = `<b>Registration failed</b>: ${ e }`;
+    } finally {
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    }
+}
+
+async function get() {
+    if( getOptions.publicKey.allowCredentials.length == 0 ) {
+        document.getElementById("message").innerHTML += '<br/>Please register a credential first'
+	return;
+    }
+    self.crypto.getRandomValues(challenge);
+    // userVerification
+    userVerification = document.getElementById("userVerification").value
+    console.log("Selected userVerification: ", userVerification);
+    if( userVerification !== 'default')
+        getOptions.publicKey.userVerification = userVerification;
+    else
+      delete(getOptions.publicKey.userVerification)
+    console.log(getOptions)
+    try {
+        const assertion = await navigator.credentials.get(getOptions);
+	console.log( assertion.toJSON ? assertion.toJSON() : assertion );
+        authenticatorData = assertion.response.authenticatorData;
+        flags = new Uint8Array(authenticatorData.slice(32,33)); // 1 uint8
+        uv = (flags[0]&0x04) > 0;
+
+        // ignoring signature :-)
+	let entry;
+        for (c in getOptions.publicKey.allowCredentials) {
+		entry = getOptions.publicKey.allowCredentials[c];	// entry should be unique
+		if( hex(entry.id) == hex(assertion.rawId)) { // use string comparison
+			break;
+		}
+	}
+	if( !entry ) throw(`unknown credential: ${credid(assertion.rawId)}`)
+	console.log(`entry ${hex(assertion.rawId)}`);
+        message = `obtained an assertion for credential ID ${ credid(assertion.rawId) }`;
+	message += `[${ uv ? "UV" : "noUV" }]`;
+    } catch(e) {
+        message = `<b>Authentication failed</b>: ${ e }`;
+    } finally {
+        document.getElementById("message").innerHTML += '<br/>' + message;
+    }
+}
+
+function color(id) {
+  return hex(id).substring(0,6);
+}
+
+function credid(id) {
+  return `<span style="color:#${ color(id) }">${ hex(id).substring(0,10) + "..." }</span>`;
+}
+
+function hex(ab) { // ArrayBuffer ab
+  return [...new Uint8Array(ab)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+</script>
+
+<p>Example Relying Party for testing CTAP2 PIN support over USB and NFC transport.
+
+<hr/>
+
+<div>
+  <button class="button" id="#create" onClick="create()">create</button>
+  <button class="button" id="#get" onClick="get()">get</button>
+  <br/>
+  <label for="userVerification">userVerification:</label>
+  <select id="userVerification">
+    <option value="default">default</option>
+    <option value="discouraged">discouraged</option>
+    <option value="preferred">preferred</option>
+    <option value="required">required</option>
+  </select>
+</div>
+
+<div id="message" class="info">
+<script>
+document.write(`<br/>You are using: <code>${ navigator.appVersion }</code> (navigator.appVersion)`);
+</script>
+</div>
+
+</body>
+</html>
