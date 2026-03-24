@@ -59,19 +59,29 @@ async function create() {
     createOptions.publicKey.user.name = "Created by " + navigator.vendor;
     var cred = await navigator.credentials.create(createOptions)
     const extensions = cred.getClientExtensionResults();
-    console.assert( extensions.prf.enabled );
-    var prf = new Uint8Array(extensions.prf.results.first);
-    message = `credential ID: ${ colorhex(cred.rawId) }, PRF output: ${ colorhex(prf) }`;
+    console.log( extensions );
+    if( extensions.prf?.results?.first ) {
+        var prf = new Uint8Array(extensions.prf.results.first);
+        message = `credential ID: ${ colorhex(cred.rawId) }, PRF output: ${ colorhex(prf) }`;
+    } else if( extensions.prf?.enabled ) {
+        message = `created credential ID: ${ colorhex(cred.rawId) }, PRF enabled, but no output`;
+    } else {
+        message = `created credential ID: ${ colorhex(cred.rawId) }, PRF not supported`;
+    }
     document.getElementById("message").innerHTML += '<br/>' + message;
 }
 
 async function get() {
     var assertion = await navigator.credentials.get(getOptions);
     const extensions = assertion.getClientExtensionResults();
-    var prf = new Uint8Array(extensions.prf.results.first);
-    message = `credential ID: ${ colorhex(assertion.rawId) }, PRF output: ${ colorhex(prf) }`;
+    console.log( extensions );
+    if( extensions.prf?.results?.first ) {
+        var prf = new Uint8Array(extensions.prf.results.first);
+        message = `credential ID: ${ colorhex(assertion.rawId) }, PRF output: ${ colorhex(prf) }`;
+    } else {
+        message = `credential ID: ${ colorhex(assertion.rawId) }, PRF not supported`;
+    }
     document.getElementById("message").innerHTML += '<br/>' + message;
-
 }
 
 function btoh(bytes /* Uint8Array */) {
