@@ -88,8 +88,9 @@ function colorhex(val) {
 }
 </script>
 
-<h3>iOS 26.4 RC PRF test</h3>
-<p>Test the WebAuthn PRF extension.
+<h3>Safari 26.4 PRF test</h3>
+<p>Test
+<a href="https://developer.apple.com/documentation/safari-release-notes/safari-26_4-release-notes#Web-Authentication">support for the WebAuthn PRF extension in Safari 26.4</a>.
 <hr>
 <button class="button" id="createbutton" onClick="create()">CREATE</button>
 <button class="button" id="getbutton" onClick="get()">GET</button>
@@ -98,14 +99,15 @@ function colorhex(val) {
 <div id="message" class="info">
 Instructions:
 <ul>
-   <li>CREATE a passkey</li> 
+   <li>CREATE a passkey <b>on a FIDO security key</b></li> 
    <li>If no PRF output appears, GET an assertion</li> 
    <li>Observe the PRF output</li> 
-   <li>Change browsers and GET an assertion</li> 
+   <li>Change browsers (e.g. Chrome on macOS) and GET an assertion</li> 
    <li>Observe the PRF output, and check it matches the previous one</li> 
    <li>Reload to start over...</li>
 </ul>
-
+With passkeys stored on FIDO security keys, Safari/Webkit on iOS 26.4 and macOS 26.4 has a bug that calculates incorrect PRF output.
+PRF output is correct however with passkeys stored in iCloud using the iOS/macOS platform authenticator.
 </div>
    
 </body>
