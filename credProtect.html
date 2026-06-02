@@ -44,8 +44,8 @@ var createCredentialDefaultArgs = {
             { type: "public-key", alg: RS256 }
         ],
         authenticatorSelection: {
-          requireResidentKey: true,
-          residentKey: "required",
+          //requireResidentKey: true,
+          //residentKey: "required",
           authenticatorAttachment: "cross-platform",
         //   userVerification: "discouraged",
         //   userVerification: "preferred",
@@ -98,7 +98,19 @@ async function create() {
     console.log("Selected userVerification: ", userVerification);
     if( userVerification !== 'default')
         createCredentialDefaultArgs.publicKey.authenticatorSelection.userVerification = userVerification;
+    // residentKey
+    residentKey = document.getElementById("residentKey").value
+    console.log("Selected residentKey: ", residentKey);
+    if( residentKey == 'default') {
+        delete(createCredentialDefaultArgs.publicKey.authenticatorSelection.residentKey)
+        delete(createCredentialDefaultArgs.publicKey.authenticatorSelection.requireResidentKey)
+    } else {
+        createCredentialDefaultArgs.publicKey.authenticatorSelection.residentKey = residentKey;
+        createCredentialDefaultArgs.publicKey.authenticatorSelection.requireResidentKey = residentKey == 'required';
+    }
 
+    //
+    console.log("%ccreateCredentialDefaultArgs.publicKey.authenticatorSelection", "color: red", createCredentialDefaultArgs.publicKey.authenticatorSelection);
     var cred = await navigator.credentials.create(createCredentialDefaultArgs);
     console.log("%cATTESTATION", "color: red", createCredentialDefaultArgs, cred); // PublicKeyCredential: id, rawId, type, authenticatorAttachment, response
     console.assert(cred.type == 'public-key');
@@ -284,6 +296,14 @@ function logon() {
         <option value="discouraged">discouraged</option>
         <option value="preferred">preferred</option>
         <option value="required">required</option>
+    </select>
+    <br/>
+    <label for="residentKey">residentKey:</label>
+    <select id="residentKey">
+      <option value="default">default</option>
+      <option>discouraged</option>
+      <option>preferred</option>
+      <option>required</option>
     </select>
     <br/>
     <button id="create" onClick="create()">navigator.credentials.create</button>
